@@ -149,6 +149,47 @@ ports:
   - "9001:9000"  # Thay đổi từ 9000 sang 9001
 ```
 
+## Deployment
+
+### Automated Deployment with GitHub Actions
+
+This project includes automated deployment to a VPS using GitHub Actions.
+
+**Setup Instructions**: See [.github/DEPLOYMENT.md](.github/DEPLOYMENT.md)
+
+**Quick Setup**:
+1. Add GitHub Secrets (SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, database credentials)
+2. Push to `main` branch or trigger workflow manually
+3. Application will be deployed automatically
+
+**Access Deployed Application**:
+- Dashboard: `http://YOUR_VPS_IP:9000`
+- SCADA: `http://YOUR_VPS_IP:9000/SCADA`
+- Customer: `http://YOUR_VPS_IP:9000/customer`
+
+### Manual Deployment
+
+If you prefer manual deployment on your VPS:
+
+```bash
+# SSH to your VPS
+ssh your-user@your-vps
+
+# Clone repository
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+
+# Create .env file
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Start application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
+```
+
 ## Development
 
 Xem file `AGENTS.md` để biết thêm chi tiết về:
