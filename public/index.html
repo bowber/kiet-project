@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCPP CSMS Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="main-container">
+        <header class="main-header">
+            <h1><i class="fa-solid fa-server"></i> CSMS Dashboard</h1>
+        </header>
+
+        <!-- BẢNG LOG MỚI -->
+        <section class="global-log-section">
+            <div class="log-header">
+                <h2><i class="fa-solid fa-file-waveform"></i> Global OCPP Log</h2>
+            </div>
+            <div class="log-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Direction</th>
+                            <th>Charge Point ID</th>
+                            <th>Action</th>
+                            <th>Payload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="global-log-body">
+                        <!-- Log entries will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <main id="chargers-container">
+            <!-- JavaScript sẽ tự động tạo các trạm sạc ở đây -->
+        </main>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>
