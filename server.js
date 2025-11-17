@@ -318,7 +318,7 @@ wss.on('connection', (ws, req) => {
         }
             
         console.log(`[Master] Spawning Python handler for '${chargePointId}'...`);
-        const pythonHandler = spawn('python', ['OCPP_handler.py']);
+        const pythonHandler = spawn('python3', ['OCPP_handler.py']);
 
         const chargePointState = { id: chargePointId, vendor: '', model: '', status: 'Connecting', transactionId: null, energy: 0 };
         
