@@ -29,3 +29,7 @@ npm-debug.log*
 # Temporary files
 *.tmp
 *.bak
+
+# Signing keys and signed APKs
+*.keystore
+*-signed.apk
