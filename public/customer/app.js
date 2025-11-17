@@ -22,9 +22,124 @@ document.addEventListener('DOMContentLoaded', () => {
     const chargeboxIdInput = document.getElementById('chargebox-id-input');
     const statusBanner = document.querySelector('.connection-status-banner');
     const connectorsContainer = document.getElementById('connectors-container');
+    const toggleScannerBtn = document.getElementById('toggle-scanner-btn');
+    const qrReaderElement = document.getElementById('qr-reader');
     
     let websocket = null;
     let chargePoint = null;
+    let html5QrCode = null;
+    let isScanning = false;
+
+    // --- QR CODE SCANNER ---
+    const startScanner = async () => {
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            
+            qrReaderElement.classList.add('active');
+            toggleScannerBtn.classList.add('active');
+            toggleScannerBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop Scanner';
+            isScanning = true;
+
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                onScanError
+            );
+        } catch (err) {
+            console.error("Unable to start scanner:", err);
+            alert("Camera access denied or not available. Please use manual entry.");
+            stopScanner();
+        }
+    };
+
+    const stopScanner = async () => {
+        if (html5QrCode && isScanning) {
+            try {
+                await html5QrCode.stop();
+                qrReaderElement.classList.remove('active');
+                toggleScannerBtn.classList.remove('active');
+                toggleScannerBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Start Scanner';
+                isScanning = false;
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
+        }
+    };
+
+    const onScanSuccess = (decodedText) => {
+        console.log(`QR Code detected: ${decodedText}`);
+        stopScanner();
+        parseAndFillFromUrl(decodedText);
+        
+        // Show success message
+        statusBanner.style.display = 'block';
+        statusBanner.className = 'connection-status-banner success';
+        statusBanner.textContent = 'QR Code scanned successfully! Click Connect to proceed.';
+    };
+
+    const onScanError = (error) => {
+        // Silent error handling for continuous scanning
+    };
+
+    const parseAndFillFromUrl = (url) => {
+        try {
+            const urlObj = new URL(url);
+            const stationId = urlObj.searchParams.get('stationId');
+            
+            if (stationId) {
+                // Extract protocol and host from current location or scanned URL
+                const protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+                const backendUrl = `${protocol}//${urlObj.host}`;
+                
+                backendUrlInput.value = backendUrl;
+                chargeboxIdInput.value = stationId;
+                
+                console.log(`Auto-filled: Backend=${backendUrl}, Station=${stationId}`);
+            }
+        } catch (err) {
+            console.error("Invalid URL format:", err);
+            alert("Invalid QR code format. Please scan a valid station QR code.");
+        }
+    };
+
+    // Toggle scanner on button click
+    toggleScannerBtn.addEventListener('click', () => {
+        if (isScanning) {
+            stopScanner();
+        } else {
+            startScanner();
+        }
+    });
+
+    // Check URL parameters on page load
+    const urlParams = new URLSearchParams(window.location.search);
+    const stationIdParam = urlParams.get('stationId');
+    
+    if (stationIdParam) {
+        // Auto-fill from URL parameters
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const backendUrl = `${protocol}//${window.location.host}`;
+        backendUrlInput.value = backendUrl;
+        chargeboxIdInput.value = stationIdParam;
+        
+        // Switch to connection view
+        navLinks.forEach(l => l.classList.remove('active'));
+        document.querySelector('[data-view="connection-view"]').classList.add('active');
+        views.forEach(view => {
+            view.style.display = view.id === 'connection-view' ? 'block' : 'none';
+        });
+        
+        // Show success banner
+        statusBanner.style.display = 'block';
+        statusBanner.className = 'connection-status-banner success';
+        statusBanner.textContent = `Station ${stationIdParam} loaded from QR code. Click Connect to proceed.`;
+    }
 
     const generateUniqueId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 

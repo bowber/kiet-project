@@ -6,6 +6,7 @@
     <title>MicroOcpp Client Simulator</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="/customer/style.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -39,14 +40,37 @@
                 </header>
                 <div class="connection-form">
                     <div class="connection-status-banner"></div>
-                    <div class="form-group">
-                        <label for="backend-url-input">Backend URL</label>
-                        <input type="text" id="backend-url-input" value="ws://localhost:9000">
+                    
+                    <!-- QR Scanner Section -->
+                    <div class="qr-scanner-section">
+                        <h3 style="margin-bottom: 15px;">
+                            <i class="fa-solid fa-qrcode"></i> Scan QR Code
+                        </h3>
+                        <div id="qr-reader" style="width: 100%; max-width: 500px; margin: 0 auto;"></div>
+                        <button id="toggle-scanner-btn" class="scanner-toggle-btn">
+                            <i class="fa-solid fa-camera"></i> Start Scanner
+                        </button>
                     </div>
-                    <div class="form-group">
-                        <label for="chargebox-id-input">Chargebox ID</label>
-                        <input type="text" id="chargebox-id-input" placeholder="Enter ID from SCADA list">
+
+                    <div class="divider">
+                        <span>OR</span>
                     </div>
+
+                    <!-- Manual Entry Section -->
+                    <div class="manual-entry-section">
+                        <h3 style="margin-bottom: 15px;">
+                            <i class="fa-solid fa-keyboard"></i> Manual Entry
+                        </h3>
+                        <div class="form-group">
+                            <label for="backend-url-input">Backend URL</label>
+                            <input type="text" id="backend-url-input" value="ws://localhost:9000">
+                        </div>
+                        <div class="form-group">
+                            <label for="chargebox-id-input">Chargebox ID</label>
+                            <input type="text" id="chargebox-id-input" placeholder="Enter ID from SCADA list">
+                        </div>
+                    </div>
+
                     <button id="connect-btn" class="connect-btn">
                         <i class="fa-solid fa-plug"></i> Connect Websocket
                     </button>
