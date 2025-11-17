@@ -14,6 +14,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Free up disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h
+          
+          # Remove unnecessary packages and files
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker system prune -af
+          sudo apt-get clean
+          
+          echo "=== Disk space after cleanup ==="
+          df -h
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
@@ -21,80 +37,71 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
       
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('mobile-app/Dockerfile.android') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-      
       - name: Build Docker image for Android
         run: |
           cd mobile-app
-          docker buildx build \
-            --cache-from=type=local,src=/tmp/.buildx-cache \
-            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
-            --load \
-            -t ocpp-android-builder \
-            -f Dockerfile.android .
-      
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          docker build -t ocpp-android-builder -f Dockerfile.android .
+          
+          echo "=== Disk space after Docker build ==="
+          df -h
+          
+          # Clean up dangling images
+          docker image prune -f
       
       - name: Build Android APK using Docker
         run: |
           cd mobile-app
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder
           
-          # Copy APK to mobile-app directory
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
-            cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
-            /app/ocpp-mobile-client.apk
+          # Run build and extract APK in one step to save space
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
+            cargo tauri android init && \
+            cargo tauri android build && \
+            cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk /app/ocpp-mobile-client.apk && \
+            echo '✅ APK copied to /app/ocpp-mobile-client.apk'"
+          
+          # Verify APK was created
+          ls -lh ocpp-mobile-client.apk
       
       - name: Sign APK with apksigner (v2/v3)
         run: |
           cd mobile-app
           
-          # Create keystore if it doesn't exist
-          if [ ! -f ocpp-signing-key.keystore ]; then
+          # Generate keystore inside Docker (has Java already)
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
             keytool -genkey -v \
-              -keystore ocpp-signing-key.keystore \
+              -keystore /app/ocpp-signing-key.keystore \
               -alias ocpp-mobile \
               -keyalg RSA \
               -keysize 2048 \
               -validity 10000 \
               -storepass android \
               -keypass android \
-              -dname "CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN"
-          fi
+              -dname 'CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN'"
           
-          # Align APK
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+          # Align, sign, and verify in one Docker run to save overhead
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
             /opt/android-sdk/build-tools/33.0.0/zipalign -v -p 4 \
-            ocpp-mobile-client.apk \
-            ocpp-mobile-client-aligned.apk
-          
-          # Sign APK
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+              /app/ocpp-mobile-client.apk \
+              /app/ocpp-mobile-client-aligned.apk && \
             /opt/android-sdk/build-tools/33.0.0/apksigner sign \
-            --ks ocpp-signing-key.keystore \
-            --ks-key-alias ocpp-mobile \
-            --ks-pass pass:android \
-            --key-pass pass:android \
-            --out ocpp-mobile-client-signed.apk \
-            ocpp-mobile-client-aligned.apk
-          
-          # Verify signature
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+              --ks /app/ocpp-signing-key.keystore \
+              --ks-key-alias ocpp-mobile \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --out /app/ocpp-mobile-client-signed.apk \
+              /app/ocpp-mobile-client-aligned.apk && \
             /opt/android-sdk/build-tools/33.0.0/apksigner verify \
-            --verbose ocpp-mobile-client-signed.apk
+              --verbose /app/ocpp-mobile-client-signed.apk && \
+            echo '✅ APK signed and verified successfully'"
           
-          # Clean up and rename to final name
-          rm -f ocpp-mobile-client-aligned.apk
+          # Clean up intermediate files
+          rm -f ocpp-mobile-client.apk ocpp-mobile-client-aligned.apk ocpp-signing-key.keystore
+          
+          # Rename to versioned filename
           mv ocpp-mobile-client-signed.apk ocpp-mobile-client-${{ steps.version.outputs.VERSION }}.apk
+          
+          echo "=== Final APK ==="
+          ls -lh ocpp-mobile-client-${{ steps.version.outputs.VERSION }}.apk
       
       - name: Calculate APK checksum
         id: checksum

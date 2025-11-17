@@ -22,8 +22,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install Rust Android targets
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
 
-# Install Tauri CLI
-RUN cargo install tauri-cli --version "^2.0.0"
+# Install Tauri CLI and clean up cargo cache
+RUN cargo install tauri-cli --version "^2.0.0" && \
+    rm -rf /root/.cargo/registry /root/.cargo/git
 
 # Setup Android SDK
 ENV ANDROID_HOME=/opt/android-sdk
@@ -42,10 +43,13 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
 
 # Accept licenses and install SDK components
 RUN yes | sdkmanager --licenses && \
-    sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;25.2.9519653"
+    sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;25.2.9519653" && \
+    rm -rf ${ANDROID_HOME}/cmdline-tools/latest/NOTICE.txt \
+           ${ANDROID_HOME}/cmdline-tools/latest/source.properties
 
 # Set working directory
 WORKDIR /app
 
 # Build the APK (expects mobile-app to be mounted at /app)
-CMD ["sh", "-c", "cargo tauri android init && cargo tauri android build && echo '\n\n✅ BUILD COMPLETE!' && echo '📱 APK Location:' && find gen/android -name '*.apk' -type f"]
+# Note: CMD is now handled in the workflow for better control
+CMD ["sh", "-c", "echo 'Use: docker run --rm -v $(pwd):/app ocpp-android-builder sh -c \"cargo tauri android init && cargo tauri android build\"'"]
