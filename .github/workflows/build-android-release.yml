@@ -48,11 +48,53 @@ jobs:
         run: |
           cd mobile-app
           docker run --rm -v "$(pwd):/app" ocpp-android-builder
+          
+          # Copy APK to mobile-app directory
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+            cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
+            /app/ocpp-mobile-client.apk
       
-      - name: Rename APK with version
+      - name: Sign APK with apksigner (v2/v3)
         run: |
-          cp mobile-app/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
-             mobile-app/ocpp-mobile-client-${{ steps.version.outputs.VERSION }}.apk
+          cd mobile-app
+          
+          # Create keystore if it doesn't exist
+          if [ ! -f ocpp-signing-key.keystore ]; then
+            keytool -genkey -v \
+              -keystore ocpp-signing-key.keystore \
+              -alias ocpp-mobile \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN"
+          fi
+          
+          # Align APK
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+            /opt/android-sdk/build-tools/33.0.0/zipalign -v -p 4 \
+            ocpp-mobile-client.apk \
+            ocpp-mobile-client-aligned.apk
+          
+          # Sign APK
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+            /opt/android-sdk/build-tools/33.0.0/apksigner sign \
+            --ks ocpp-signing-key.keystore \
+            --ks-key-alias ocpp-mobile \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out ocpp-mobile-client-signed.apk \
+            ocpp-mobile-client-aligned.apk
+          
+          # Verify signature
+          docker run --rm -v "$(pwd):/app" ocpp-android-builder \
+            /opt/android-sdk/build-tools/33.0.0/apksigner verify \
+            --verbose ocpp-mobile-client-signed.apk
+          
+          # Clean up and rename to final name
+          rm -f ocpp-mobile-client-aligned.apk
+          mv ocpp-mobile-client-signed.apk ocpp-mobile-client-${{ steps.version.outputs.VERSION }}.apk
       
       - name: Calculate APK checksum
         id: checksum
@@ -89,7 +131,7 @@ jobs:
             - Camera permission for QR scanning
             - Network permission for WebSocket connection
             
-            **Note:** This is an unsigned APK for testing purposes. You may see a security warning during installation.
+            **Note:** This APK is signed with a development certificate. You may see an "Unknown source" warning during installation (this is normal for non-Play Store apps).
             
             ### 📋 Checksums
             See `checksums.txt` for SHA256 verification.
