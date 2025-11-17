@@ -125,11 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update connector details
         connectorDetails.innerHTML = `<h4>Connector 1</h4><p>Status: ${safeStatus}</p>`;
 
-        if (safeStatus === 'Available') {
-            qrCodeContainer.classList.remove('hidden');
-        } else {
-            qrCodeContainer.classList.add('hidden');
-        }
+        // Always show QR code regardless of status
+        qrCodeContainer.classList.remove('hidden');
     };
 
     // --- WEBSOCKET CONNECTION ---
