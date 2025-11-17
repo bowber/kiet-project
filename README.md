@@ -190,6 +190,32 @@ docker-compose up -d
 docker-compose logs -f app
 ```
 
+## Mobile App
+
+📱 **NEW: Tauri v2 Mobile Application**
+
+The customer portal has been converted into a native mobile app for Android and iOS!
+
+**Location**: `mobile-app/`
+
+**Quick Start**:
+```bash
+cd mobile-app
+./quickstart.sh
+```
+
+**Features**:
+- Native Android and iOS apps
+- QR code scanner for quick connection
+- WebSocket OCPP 1.6 support
+- Offline-capable
+- Native performance
+
+**Documentation**:
+- [Mobile App README](mobile-app/README.md) - Complete documentation
+- [Quick Start Guide](mobile-app/QUICKSTART.md) - Step-by-step setup
+- [Deployment Checklist](mobile-app/DEPLOYMENT_CHECKLIST.md) - Pre-release checklist
+
 ## Development
 
 Xem file `AGENTS.md` để biết thêm chi tiết về:
