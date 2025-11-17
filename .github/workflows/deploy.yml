@@ -37,6 +37,21 @@ jobs:
           MYSQL_USER: ${{ secrets.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         run: |
+          # Create deployment directory on VPS
+          DEPLOY_DIR="${DEPLOY_PATH:-/home/$SSH_USER/ocpp-csms}"
+          ssh -p ${SSH_PORT:-22} $SSH_USER@$SSH_HOST "mkdir -p $DEPLOY_DIR"
+          
+          # Sync files to VPS (excluding unnecessary files)
+          rsync -avz --delete \
+            -e "ssh -p ${SSH_PORT:-22}" \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='github_secrets.txt' \
+            --exclude='DEPLOYMENT_SUMMARY.txt' \
+            ./ $SSH_USER@$SSH_HOST:$DEPLOY_DIR/
+          
+          # Execute deployment commands on VPS
           ssh -p ${SSH_PORT:-22} $SSH_USER@$SSH_HOST << 'ENDSSH'
             set -e
             
@@ -48,26 +63,13 @@ jobs:
             
             echo -e "${GREEN}=== Starting deployment ===${NC}"
             
+            # Navigate to deployment directory
+            DEPLOY_DIR="${DEPLOY_PATH:-$HOME/ocpp-csms}"
+            cd $DEPLOY_DIR
+            
             # Verify Docker is available
             docker --version
             docker compose version
-            
-            # Create deployment directory
-            DEPLOY_DIR="${DEPLOY_PATH:-$HOME/ocpp-csms}"
-            echo -e "${GREEN}Deploying to: $DEPLOY_DIR${NC}"
-            mkdir -p $DEPLOY_DIR
-            cd $DEPLOY_DIR
-            
-            # Clone or update repository
-            if [ -d .git ]; then
-              echo -e "${YELLOW}Updating existing repository...${NC}"
-              git fetch origin
-              git reset --hard origin/main
-              git clean -fd
-            else
-              echo -e "${YELLOW}Cloning repository...${NC}"
-              git clone https://github.com/${{ github.repository }}.git .
-            fi
             
             # Create .env file
             echo -e "${YELLOW}Creating .env file...${NC}"
