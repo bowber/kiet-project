@@ -45,13 +45,7 @@ RUN yes | sdkmanager --licenses && \
     sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;25.2.9519653"
 
 # Set working directory
-WORKDIR /project
+WORKDIR /app
 
-# Copy the entire project including public directory
-COPY ../public ./public
-COPY . ./mobile-app
-
-WORKDIR /project/mobile-app
-
-# Build the APK
+# Build the APK (expects mobile-app to be mounted at /app)
 CMD ["sh", "-c", "cargo tauri android init && cargo tauri android build && echo '\n\n✅ BUILD COMPLETE!' && echo '📱 APK Location:' && find gen/android -name '*.apk' -type f"]
