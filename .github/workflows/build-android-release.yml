@@ -21,10 +21,28 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
       
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('mobile-app/Dockerfile.android') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
       - name: Build Docker image for Android
         run: |
           cd mobile-app
-          docker build -t ocpp-android-builder -f Dockerfile.android .
+          docker buildx build \
+            --cache-from=type=local,src=/tmp/.buildx-cache \
+            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            --load \
+            -t ocpp-android-builder \
+            -f Dockerfile.android .
+      
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       
       - name: Build Android APK using Docker
         run: |
