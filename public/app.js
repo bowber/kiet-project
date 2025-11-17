@@ -4,6 +4,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalLogBody = document.getElementById('global-log-body');
     const MAX_LOG_ROWS = 100;
 
+    // Kiểm tra xem các phần tử cần thiết có tồn tại không
+    if (!chargersContainer) {
+        console.error('Error: Element with id "chargers-container" not found!');
+        return;
+    }
+    if (!globalLogBody) {
+        console.error('Error: Element with id "global-log-body" not found!');
+        return;
+    }
+
     let ws; 
 
     function sendRemoteCommand(command, chargePointId, params = {}) {
