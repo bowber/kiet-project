@@ -48,23 +48,9 @@ jobs:
             
             echo -e "${GREEN}=== Starting deployment ===${NC}"
             
-            # Install Docker if not present
-            if ! command -v docker &> /dev/null; then
-              echo -e "${YELLOW}Docker not found, installing...${NC}"
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
-              sudo usermod -aG docker $USER
-              rm get-docker.sh
-              echo -e "${GREEN}Docker installed${NC}"
-            fi
-            
-            # Install Docker Compose if not present
-            if ! docker compose version &> /dev/null; then
-              echo -e "${YELLOW}Docker Compose not found, installing...${NC}"
-              sudo apt-get update
-              sudo apt-get install -y docker-compose-plugin
-              echo -e "${GREEN}Docker Compose installed${NC}"
-            fi
+            # Verify Docker is available
+            docker --version
+            docker compose version
             
             # Create deployment directory
             DEPLOY_DIR="${DEPLOY_PATH:-$HOME/ocpp-csms}"
