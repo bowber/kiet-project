@@ -17,30 +17,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            mobile-app/target/
-            mobile-app/gen/android/.gradle/
-            mobile-app/gen/android/app/build/
-          key: ${{ runner.os }}-cargo-android-v1
-          restore-keys: |
-            ${{ runner.os }}-cargo-android-
+      - name: Check Rust cache
+        run: |
+          echo "Cargo registry size: $(du -sh ~/.cargo 2>/dev/null || echo '0')"
+          echo "Target cache size: $(du -sh mobile-app/target 2>/dev/null || echo '0')"
+          echo "Cache will persist on self-hosted runner between builds"
       
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      - name: Check Gradle cache
+        run: |
+          echo "Gradle cache size: $(du -sh ~/.gradle 2>/dev/null || echo '0')"
+          echo "Cache will persist on self-hosted runner between builds"
       
       - name: Add Rust Android targets
         run: |
