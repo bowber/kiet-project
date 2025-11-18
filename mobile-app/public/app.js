@@ -353,6 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 <!-- Payment Method Selection -->
                 <div class="payment-method-section" style="display: none;">
+                    <button class="back-btn payment-method-back-btn">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
                     <div class="payment-method-header">
                         <h4><i class="fas fa-credit-card"></i> Select Payment Method</h4>
                         <p class="payment-instruction">Choose how you want to pay</p>
@@ -380,6 +383,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 <!-- VietQR Payment Section -->
                 <div class="vietqr-section" style="display: none;">
+                    <button class="back-btn vietqr-back-btn">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
                     <div class="vietqr-header">
                         <h4><i class="fas fa-qrcode"></i> Scan to Pay</h4>
                         <p class="qr-instruction">Scan this QR code to complete payment</p>
@@ -395,6 +401,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 <!-- Stripe Payment Section -->
                 <div class="stripe-section" style="display: none;">
+                    <button class="back-btn stripe-back-btn">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
                     <div class="stripe-header">
                         <h4><i class="fab fa-cc-stripe"></i> Card Payment</h4>
                     </div>
@@ -480,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
                 // Payment method selection elements
                 paymentMethodSection: this.element.querySelector('.payment-method-section'),
+                paymentMethodBackBtn: this.element.querySelector('.payment-method-back-btn'),
                 paymentMethodBtns: this.element.querySelectorAll('.payment-method-btn'),
                 vietqrMethodBtn: this.element.querySelector('.vietqr-btn'),
                 stripeMethodBtn: this.element.querySelector('.stripe-btn'),
@@ -487,10 +497,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 proceedPaymentBtn: this.element.querySelector('.proceed-payment-btn'),
                 // VietQR section elements
                 vietqrSection: this.element.querySelector('.vietqr-section'),
+                vietqrBackBtn: this.element.querySelector('.vietqr-back-btn'),
                 vietqrImage: this.element.querySelector('.vietqr-image'),
                 amountValue: this.element.querySelector('.amount-value'),
                 // Stripe section elements
                 stripeSection: this.element.querySelector('.stripe-section'),
+                stripeBackBtn: this.element.querySelector('.stripe-back-btn'),
                 stripeCardNumber: this.element.querySelector('#stripe-card-number'),
                 stripeExpiry: this.element.querySelector('#stripe-expiry'),
                 stripeCvc: this.element.querySelector('#stripe-cvc'),
@@ -691,6 +703,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Stripe pay button
             this.dom.stripePayBtn.addEventListener('click', () => {
                 this.processStripePayment();
+            });
+            
+            // Back button handlers
+            this.dom.paymentMethodBackBtn.addEventListener('click', () => {
+                this.dom.paymentMethodSection.style.display = 'none';
+                this.showPaymentSection();
+            });
+            
+            this.dom.vietqrBackBtn.addEventListener('click', () => {
+                this.dom.vietqrSection.style.display = 'none';
+                this.dom.paymentMethodSection.style.display = 'block';
+            });
+            
+            this.dom.stripeBackBtn.addEventListener('click', () => {
+                this.dom.stripeSection.style.display = 'none';
+                this.dom.paymentMethodSection.style.display = 'block';
             });
             
             // Stop charging button
