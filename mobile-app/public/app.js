@@ -221,8 +221,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Charging parameters
             this.BATTERY_CAPACITY = 5; // kWh
-            this.CHARGING_POWER = 6; // kW
-            this.PRICE_PER_KWH = 10000; // VND
+            
+            // Charge speed options
+            this.chargeSpeedOptions = {
+                normal: { power: 6, price: 10000, label: 'Normal', icon: 'fa-battery-half' },
+                fast: { power: 12, price: 12000, label: 'Fast', icon: 'fa-bolt' },
+                lightning: { power: 18, price: 20000, label: 'Lightning', icon: 'fa-bolt-lightning' }
+            };
+            
+            this.selectedChargeSpeed = 'normal'; // default speed
+            this.CHARGING_POWER = this.chargeSpeedOptions[this.selectedChargeSpeed].power;
+            this.PRICE_PER_KWH = this.chargeSpeedOptions[this.selectedChargeSpeed].price;
             
             // Load current power level from localStorage, default 26%
             this.currentPowerLevel = parseInt(localStorage.getItem('currentPowerLevel') || '26');
@@ -292,6 +301,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="slider-labels">
                             <span>${this.currentPowerLevel}%</span>
                             <span>100%</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Charge Speed Selector -->
+                    <div class="charge-speed-section">
+                        <h5 class="speed-section-title"><i class="fas fa-gauge-high"></i> Charging Speed</h5>
+                        <div class="charge-speed-grid">
+                            <button class="charge-speed-btn active" data-speed="normal">
+                                <i class="fas fa-battery-half"></i>
+                                <span class="speed-name">Normal</span>
+                                <span class="speed-details">6 kW</span>
+                                <span class="speed-price">10,000₫/kWh</span>
+                            </button>
+                            <button class="charge-speed-btn" data-speed="fast">
+                                <i class="fas fa-bolt"></i>
+                                <span class="speed-name">Fast</span>
+                                <span class="speed-details">12 kW</span>
+                                <span class="speed-price">12,000₫/kWh</span>
+                            </button>
+                            <button class="charge-speed-btn" data-speed="lightning">
+                                <i class="fas fa-bolt-lightning"></i>
+                                <span class="speed-name">Lightning</span>
+                                <span class="speed-details">18 kW</span>
+                                <span class="speed-price">20,000₫/kWh</span>
+                            </button>
                         </div>
                     </div>
                     
@@ -440,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetSlider: this.element.querySelector('.target-slider'),
                 batteryTarget: this.element.querySelector('.battery-target'),
                 sliderLabels: this.element.querySelector('.slider-labels'),
+                chargeSpeedBtns: this.element.querySelectorAll('.charge-speed-btn'),
                 timeEstimate: this.element.querySelector('.time-estimate'),
                 costEstimate: this.element.querySelector('.cost-estimate'),
                 confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
@@ -588,6 +623,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.targetPowerLevel = parseInt(e.target.value);
                 this.dom.batteryTarget.textContent = `${this.targetPowerLevel}%`;
                 this.updateEstimates();
+            });
+            
+            // Charge speed selection buttons
+            this.dom.chargeSpeedBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.dom.chargeSpeedBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.selectedChargeSpeed = btn.dataset.speed;
+                    
+                    // Update charging power and price
+                    const speedConfig = this.chargeSpeedOptions[this.selectedChargeSpeed];
+                    this.CHARGING_POWER = speedConfig.power;
+                    this.PRICE_PER_KWH = speedConfig.price;
+                    
+                    // Recalculate estimates
+                    this.updateEstimates();
+                });
             });
             
             // Confirm payment and show payment method selector

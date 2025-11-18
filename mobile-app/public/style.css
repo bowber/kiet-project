@@ -460,6 +460,86 @@ body {
     color: var(--text-secondary);
 }
 
+/* Charge Speed Section */
+.charge-speed-section {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.speed-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.charge-speed-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.charge-speed-btn {
+    background-color: #f7f8f9;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.charge-speed-btn:active {
+    transform: scale(0.97);
+}
+
+.charge-speed-btn.active {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, #deebff 0%, #b3d4ff 100%);
+    box-shadow: 0 2px 8px rgba(0, 82, 204, 0.2);
+}
+
+.charge-speed-btn i {
+    font-size: 24px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+}
+
+.charge-speed-btn.active i {
+    color: var(--primary-color);
+}
+
+.charge-speed-btn .speed-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.charge-speed-btn .speed-details {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.charge-speed-btn .speed-price {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.charge-speed-btn.active .speed-details,
+.charge-speed-btn.active .speed-price {
+    color: var(--primary-color);
+}
+
 /* Charging Estimate */
 .charging-estimate {
     background-color: var(--surface-color);
