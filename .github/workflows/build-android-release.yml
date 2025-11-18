@@ -17,21 +17,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Free up disk space
-        run: |
-          echo "=== Disk space before cleanup ==="
-          df -h
-          
-          # Remove unnecessary packages and files to free up space
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android/sdk/ndk
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          
-          echo "=== Disk space after cleanup ==="
-          df -h
-      
       - name: Add Rust Android targets
         run: |
           rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
