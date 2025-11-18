@@ -218,8 +218,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.meterValueIntervalId = null;
             this.isPluggedIn = false;
             this.isEvReady = false;
+            
+            // Charging parameters
+            this.BATTERY_CAPACITY = 5; // kWh
+            this.CHARGING_POWER = 6; // kW
+            this.PRICE_PER_KWH = 10000; // VND
+            
+            // Load current power level from localStorage, default 26%
+            this.currentPowerLevel = parseInt(localStorage.getItem('currentPowerLevel') || '26');
+            this.targetPowerLevel = 100;
+            
+            this.chargingStartTime = null;
+            this.chargingDuration = null; // in seconds
 
-            // --- MỚI: Kho cấu hình giả lập ---
             this.configuration = {
                 'HeartbeatInterval': '60',
                 'ConnectionTimeOut': '120',
@@ -253,16 +264,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="metric-item"><span class="metric-label">Energy</span><span class="metric-value energy-value">0 Wh</span></div>
                     <div class="metric-item"><span class="metric-label">Power</span><span class="metric-value power-value">0 W</span></div>
                 </div>
-                <div class="action-footer"><button class="action-btn start-stop-btn" disabled>Start Charging</button></div>
-                <!-- MỚI: Khu vực hành động tùy chỉnh -->
-                <div class="custom-actions-section">
-                    <h4>Custom Actions</h4>
-                    <div class="data-transfer-form">
-                        <input type="text" class="vendor-id-input" placeholder="Vendor ID" value="WebSimVendor">
-                        <input type="text" class="data-input" placeholder="Data">
-                        <button class="action-btn send-data-transfer-btn">Send DataTransfer</button>
+                
+                <!-- Payment Section -->
+                <div class="payment-section" style="display: none;">
+                    <div class="payment-header">
+                        <h4><i class="fas fa-bolt"></i> Select Charging Target</h4>
+                    </div>
+                    
+                    <div class="battery-status">
+                        <div class="battery-info-row">
+                            <span class="battery-label">Current Level:</span>
+                            <span class="battery-current">${this.currentPowerLevel}%</span>
+                        </div>
+                        <div class="battery-info-row">
+                            <span class="battery-label">Target Level:</span>
+                            <span class="battery-target">100%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="slider-container">
+                        <input type="range" class="target-slider" min="${this.currentPowerLevel}" max="100" value="100" step="1">
+                        <div class="slider-labels">
+                            <span>${this.currentPowerLevel}%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="charging-estimate">
+                        <div class="estimate-item">
+                            <i class="fas fa-clock"></i>
+                            <div class="estimate-content">
+                                <span class="estimate-label">Estimated Time</span>
+                                <span class="estimate-value time-estimate">37 mins</span>
+                            </div>
+                        </div>
+                        <div class="estimate-item">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <div class="estimate-content">
+                                <span class="estimate-label">Estimated Cost</span>
+                                <span class="estimate-value cost-estimate">37,000 VND</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="action-btn confirm-payment-btn">
+                        <i class="fas fa-check-circle"></i> Start Charging
+                    </button>
+                </div>
+                
+                <!-- Charging Progress Section -->
+                <div class="charging-progress-section" style="display: none;">
+                    <div class="charging-info">
+                        <div class="charging-status-row">
+                            <span class="charging-label">Charging</span>
+                            <span class="charging-percentage">${this.currentPowerLevel}%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" style="width: ${this.currentPowerLevel}%"></div>
+                        </div>
+                        <div class="charging-time-row">
+                            <span class="time-label">Time Remaining:</span>
+                            <span class="time-remaining">--:--</span>
+                        </div>
                     </div>
                 </div>
+                
+                <div class="action-footer"><button class="action-btn start-stop-btn" disabled>Start Charging</button></div>
             `;
         }
         
@@ -278,16 +345,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 evStatusText: this.element.querySelector('.ev-status-btn .ev-status-text'),
                 energyValue: this.element.querySelector('.energy-value'),
                 powerValue: this.element.querySelector('.power-value'),
-                // MỚI: Cache các phần tử mới
-                vendorIdInput: this.element.querySelector('.vendor-id-input'),
-                dataInput: this.element.querySelector('.data-input'),
-                sendDataTransferBtn: this.element.querySelector('.send-data-transfer-btn'),
+                // Payment section elements
+                paymentSection: this.element.querySelector('.payment-section'),
+                targetSlider: this.element.querySelector('.target-slider'),
+                batteryTarget: this.element.querySelector('.battery-target'),
+                timeEstimate: this.element.querySelector('.time-estimate'),
+                costEstimate: this.element.querySelector('.cost-estimate'),
+                confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
+                // Charging progress elements
+                chargingProgressSection: this.element.querySelector('.charging-progress-section'),
+                chargingPercentage: this.element.querySelector('.charging-percentage'),
+                progressBarFill: this.element.querySelector('.progress-bar-fill'),
+                timeRemaining: this.element.querySelector('.time-remaining'),
             };
         }
 
-        addEventListeners() {
-            this.dom.startStopBtn.addEventListener('click', () => this.handleLocalStartStop());
+        calculateChargingEstimate(targetLevel) {
+            // Calculate energy needed (kWh)
+            const percentageDiff = targetLevel - this.currentPowerLevel;
+            const energyNeeded = (percentageDiff / 100) * this.BATTERY_CAPACITY;
             
+            // Calculate time (hours)
+            const timeHours = energyNeeded / this.CHARGING_POWER;
+            const timeMinutes = Math.round(timeHours * 60);
+            
+            // Calculate cost (VND)
+            const cost = Math.round(energyNeeded * this.PRICE_PER_KWH);
+            
+            return {
+                timeMinutes,
+                cost,
+                energyNeeded
+            };
+        }
+
+        formatTime(minutes) {
+            if (minutes < 60) {
+                return `${minutes} mins`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+            }
+        }
+
+        updateEstimates() {
+            const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
+            this.dom.timeEstimate.textContent = this.formatTime(estimate.timeMinutes);
+            this.dom.costEstimate.textContent = `${estimate.cost.toLocaleString()} VND`;
+        }
+
+        addEventListeners() {
             this.dom.plugStatusBtn.addEventListener('click', () => {
                 this.isPluggedIn = !this.isPluggedIn;
                 this.dom.plugStatusBtn.classList.toggle('active', this.isPluggedIn);
@@ -304,7 +412,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.sendRequest("StatusNotification", { connectorId: 1, status: "Available", errorCode: "NoError" });
                     this.updateStatusUI('Available');
                 }
-                this.checkStartButtonState();
             });
 
             this.dom.evStatusBtn.addEventListener('click', () => {
@@ -314,25 +421,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (this.isEvReady && this.isPluggedIn) {
                     this.sendRequest("StatusNotification", { connectorId: 1, status: "Preparing", errorCode: "NoError" });
                     this.updateStatusUI('Preparing');
+                    // Show payment interface when ready
+                    this.showPaymentSection();
                 } else if (this.isPluggedIn) {
                     this.sendRequest("StatusNotification", { connectorId: 1, status: "Unavailable", errorCode: "NoError" });
                     this.updateStatusUI('Unavailable');
+                    this.hidePaymentSection();
                 }
-                
-                this.checkStartButtonState();
             });
 
-            // MỚI: Event listener để gửi DataTransfer
-            this.dom.sendDataTransferBtn.addEventListener('click', () => {
-                const vendorId = this.dom.vendorIdInput.value;
-                const data = this.dom.dataInput.value;
-                if (vendorId) {
-                    this.sendRequest('DataTransfer', { vendorId, data });
-                    this.dom.dataInput.value = '';
-                } else {
-                    alert('Vendor ID is required.');
+            // Target slider
+            this.dom.targetSlider.addEventListener('input', (e) => {
+                this.targetPowerLevel = parseInt(e.target.value);
+                this.dom.batteryTarget.textContent = `${this.targetPowerLevel}%`;
+                this.updateEstimates();
+            });
+            
+            // Confirm payment and start charging
+            this.dom.confirmPaymentBtn.addEventListener('click', () => {
+                this.hidePaymentSection();
+                this.showChargingProgress();
+                this.startChargingProcess("LOCAL_TAG");
+            });
+            
+            // Stop charging button
+            this.dom.startStopBtn.addEventListener('click', () => {
+                if (this.transactionId) {
+                    this.stopChargingProcess();
                 }
             });
+        }
+
+        showPaymentSection() {
+            this.dom.paymentSection.style.display = 'block';
+            this.updateEstimates();
+        }
+
+        hidePaymentSection() {
+            this.dom.paymentSection.style.display = 'none';
+        }
+
+        showChargingProgress() {
+            this.dom.chargingProgressSection.style.display = 'block';
+            this.dom.startStopBtn.disabled = false;
+            this.dom.startStopBtn.textContent = 'Stop Charging';
+            this.dom.startStopBtn.className = 'action-btn start-stop-btn stop';
+            
+            // Calculate charging duration
+            const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
+            this.chargingDuration = estimate.timeMinutes * 60; // convert to seconds
+            this.chargingStartTime = Date.now();
+            this.updateChargingProgress();
+        }
+
+        hideChargingProgress() {
+            this.dom.chargingProgressSection.style.display = 'none';
+        }
+
+        updateChargingProgress() {
+            if (!this.transactionId || !this.chargingStartTime) return;
+            
+            const elapsed = (Date.now() - this.chargingStartTime) / 1000; // seconds
+            const totalPercentageGain = this.targetPowerLevel - this.currentPowerLevel;
+            const percentageGained = (elapsed / this.chargingDuration) * totalPercentageGain;
+            const currentPercentage = Math.min(this.currentPowerLevel + percentageGained, this.targetPowerLevel);
+            const remaining = Math.max(this.chargingDuration - elapsed, 0);
+            
+            // Update UI
+            this.dom.chargingPercentage.textContent = `${Math.floor(currentPercentage)}%`;
+            this.dom.progressBarFill.style.width = `${currentPercentage}%`;
+            
+            // Format remaining time
+            const minutes = Math.floor(remaining / 60);
+            const seconds = Math.floor(remaining % 60);
+            this.dom.timeRemaining.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Check if charging complete
+            if (currentPercentage >= this.targetPowerLevel) {
+                // Save new power level to localStorage
+                this.currentPowerLevel = this.targetPowerLevel;
+                localStorage.setItem('currentPowerLevel', this.currentPowerLevel.toString());
+                this.stopChargingProcess();
+            }
         }
 
         getElement() { return this.element; }
@@ -367,7 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.sendResponse(uniqueId, { status: "Accepted" });
                         this.startChargingProcess(payload.idTag);
                     } else {
-                        // Từ chối lệnh vì chưa sẵn sàng
                         this.sendResponse(uniqueId, { status: "Rejected" });
                         console.log("Rejected RemoteStart: Not Plugged in or Not Ready.");
                     }
@@ -382,7 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     break;
                 
-                // --- MỚI: Xử lý các lệnh nâng cao ---
                 case 'GetConfiguration':
                     const requestedKeys = payload.key || Object.keys(this.configuration);
                     const configurationKey = [];
@@ -422,14 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
                      this.sendResponse(uniqueId, { status: "Rejected" });
             }
         }
-        
-        handleLocalStartStop() {
-            if (this.transactionId) {
-                this.stopChargingProcess();
-            } else {
-                this.startChargingProcess("LOCAL_TAG");
-            }
-        }
 
         startChargingProcess(idTag) {
             this.sendRequest("Authorize", { idTag });
@@ -448,6 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 timestamp: new Date().toISOString() 
             });
             this.stopSendingMeterValues();
+            this.hideChargingProgress();
             this.sendRequest("StatusNotification", { connectorId: 1, status: "Finishing", errorCode: "NoError" });
             this.updateStatusUI('Finishing');
             
@@ -459,67 +620,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.sendRequest("StatusNotification", { connectorId: 1, status: newStatus, errorCode: "NoError" });
                 this.updateStatusUI(newStatus);
                 this.transactionId = null; 
+                this.chargingStartTime = null;
             }, 2000);
-        }
-        
-        checkStartButtonState() {
-            const isReadyToStart = this.isPluggedIn && this.isEvReady && this.dom.statusText.textContent === 'Preparing';
-            this.dom.startStopBtn.disabled = !isReadyToStart;
         }
 
         updateStatusUI(status) {
             this.dom.statusDisplay.className = 'status-display';
-            const btn = this.dom.startStopBtn;
 
             this.dom.plugStatusBtn.disabled = true;
             this.dom.evStatusBtn.disabled = true;
-            btn.disabled = true;
 
             switch (status) {
                 case 'Available':
                     this.dom.statusDisplay.classList.add('status-available');
                     this.dom.statusIcon.className = 'fas fa-check-circle status-icon';
                     this.dom.statusText.textContent = 'Available';
-                    btn.textContent = 'Start Charging';
-                    btn.className = 'action-btn start-stop-btn start';
                     this.dom.plugStatusBtn.disabled = false;
+                    this.dom.startStopBtn.style.display = 'none';
                     break;
                 case 'Unavailable':
                     this.dom.statusDisplay.classList.add('status-unavailable');
                     this.dom.statusIcon.className = 'fas fa-pause-circle status-icon';
                     this.dom.statusText.textContent = 'Plugged In';
-                    btn.textContent = 'Start Charging';
-                    btn.className = 'action-btn start-stop-btn start';
                     this.dom.plugStatusBtn.disabled = false;
                     this.dom.evStatusBtn.disabled = false;
+                    this.dom.startStopBtn.style.display = 'none';
                     break;
                 case 'Preparing':
                     this.dom.statusDisplay.classList.add('status-charging');
                     this.dom.statusIcon.className = 'fas fa-plug status-icon';
                     this.dom.statusText.textContent = 'Preparing';
-                    btn.textContent = 'Start Charging';
-                    btn.className = 'action-btn start-stop-btn start';
                     this.dom.plugStatusBtn.disabled = false;
                     this.dom.evStatusBtn.disabled = false;
-                    this.checkStartButtonState();
+                    this.dom.startStopBtn.style.display = 'none';
                     break;
                 case 'Charging':
                     this.dom.statusDisplay.classList.add('status-charging');
                     this.dom.statusIcon.className = 'fas fa-bolt status-icon';
                     this.dom.statusText.textContent = 'Charging';
-                    btn.textContent = 'Stop Charging';
-                    btn.className = 'action-btn start-stop-btn stop';
-                    btn.disabled = false;
+                    this.dom.startStopBtn.style.display = 'block';
                     break;
                 case 'Finishing':
                     this.dom.statusDisplay.classList.add('status-charging');
                     this.dom.statusIcon.className = 'fas fa-spinner fa-spin status-icon';
                     this.dom.statusText.textContent = 'Finishing...';
+                    this.dom.startStopBtn.style.display = 'none';
                     break;
                 case 'Offline':
                     this.dom.statusDisplay.classList.add('status-error');
                     this.dom.statusIcon.className = 'fas fa-times-circle status-icon';
                     this.dom.statusText.textContent = 'Offline';
+                    this.dom.startStopBtn.style.display = 'none';
                     break;
             }
         }
@@ -537,6 +688,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     transactionId: txId,
                     meterValue: [{ timestamp: new Date().toISOString(), sampledValue: [{ value: this.meterValue.toString(), unit: "Wh" }] }]
                 });
+                
+                // Update charging progress
+                this.updateChargingProgress();
             }, 5000);
         }
         
