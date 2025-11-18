@@ -1,6 +1,6 @@
 [package]
 name = "ocpp-mobile-client"
-version = "0.1.17"
+version = "0.1.18"
 edition = "2021"
 
 [build-dependencies]
@@ -15,3 +15,8 @@ serde_json = "1"
 [lib]
 name = "ocpp_mobile_client_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
+
+[profile.release]
+opt-level = "z"      # Optimize for size instead of speed
+lto = false          # Disable LTO for faster builds
+codegen-units = 16   # More parallel compilation
