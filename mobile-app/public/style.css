@@ -659,12 +659,11 @@ body {
 .payment-toast {
     position: fixed;
     top: 20px;
-    left: 16px;
-    right: 16px;
-    transform: translateY(-20px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
     background: #ffffff;
     color: #1a253c;
-    padding: 16px 20px;
+    padding: 16px 24px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     display: flex;
@@ -675,17 +674,17 @@ body {
     z-index: 10000;
     opacity: 0;
     transition: all 0.3s ease;
+    max-width: 90%;
 }
 
 .payment-toast.show {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
 }
 
 .payment-toast i {
     font-size: 20px;
     color: #00875a;
-    flex-shrink: 0;
 }
 
 /* Charging Progress Section */
@@ -771,46 +770,24 @@ body {
 }
 
 .connection-status-banner {
-    padding: 16px 20px;
-    border-radius: 8px;
+    padding: 16px;
+    border-radius: 12px;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     display: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    text-align: center;
 }
 
 .connection-status-banner.success {
-    background-color: #ffffff;
-    color: #1a253c;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.connection-status-banner.success::before {
-    content: '\f058';
-    font-family: 'Font Awesome 6 Free';
-    font-weight: 900;
-    font-size: 20px;
-    color: #00875a;
-    flex-shrink: 0;
+    background-color: var(--status-available-bg);
+    color: var(--status-available-text);
+    border: 2px solid #00875a;
 }
 
 .connection-status-banner.error {
-    background-color: #ffffff;
-    color: #1a253c;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.connection-status-banner.error::before {
-    content: '\f06a';
-    font-family: 'Font Awesome 6 Free';
-    font-weight: 900;
-    font-size: 20px;
-    color: #de350b;
-    flex-shrink: 0;
+    background-color: var(--status-error-bg);
+    color: var(--status-error-text);
+    border: 2px solid var(--error-color);
 }
 
 /* QR Scanner */
