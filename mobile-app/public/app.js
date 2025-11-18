@@ -704,6 +704,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Back button handlers
             this.dom.paymentMethodBackBtn.addEventListener('click', () => {
                 this.dom.paymentMethodSection.style.display = 'none';
+                // Reset payment method selection when going back to charging target
+                this.selectedPaymentMethod = null;
                 this.showPaymentSection();
             });
             
@@ -753,8 +755,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide payment section
             this.hidePaymentSection();
             
-            // Set default payment method
-            this.selectedPaymentMethod = 'vietqr';
+            // Set default payment method only if not already set
+            if (!this.selectedPaymentMethod) {
+                this.selectedPaymentMethod = 'vietqr';
+            }
+            
+            // Update UI to reflect selected payment method
+            this.dom.paymentMethodBtns.forEach(btn => {
+                if (btn.dataset.method === this.selectedPaymentMethod) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
             
             // Update amount display
             this.dom.summaryValue.textContent = `${amount.toLocaleString()} VND`;
