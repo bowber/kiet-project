@@ -3,15 +3,7 @@
   "version": "0.1.1",
   "description": "OCPP 1.6 Mobile Client with Tauri v2",
   "scripts": {
-    "dev": "cargo tauri dev",
-    "build": "cargo tauri build",
-    "android:init": "cargo tauri android init",
-    "android:dev": "cargo tauri android dev",
-    "android:build": "cargo tauri android build --release",
-    "ios:init": "cargo tauri ios init",
-    "ios:dev": "cargo tauri ios dev",
-    "ios:build": "cargo tauri ios build --release",
-    "install-cli": "cargo install tauri-cli --version '^2.0.0'"
+    "tauri": "tauri"
   },
   "keywords": [
     "ocpp",
@@ -21,5 +13,8 @@
     "ev-charging"
   ],
   "author": "OCPP CSMS",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
 }

@@ -21,10 +21,10 @@ jobs:
         run: |
           rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
       
-      - name: Install Tauri CLI
+      - name: Install dependencies
         run: |
-          npm install -g @tauri-apps/cli@latest
-          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
+          cd mobile-app
+          npm install
       
       - name: Install Android SDK components
         run: |
@@ -43,12 +43,12 @@ jobs:
       - name: Initialize Android project
         run: |
           cd mobile-app
-          npx tauri android init
+          npm run tauri android init
       
       - name: Build Android APK
         run: |
           cd mobile-app
-          npx tauri android build
+          npm run tauri android build
           
           # Copy unsigned APK to working directory
           cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk ocpp-mobile-client-unsigned.apk
