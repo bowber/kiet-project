@@ -12,8 +12,10 @@
 - **Version Management**: To prepare for a new Android build, update version in these files:
   1. `mobile-app/tauri.conf.json` - Update `version` field (line 4) - e.g., "0.1.17"
   2. `mobile-app/Cargo.toml` - Update `version` field (line 3) - should match tauri.conf.json
-  3. Android build automatically uses version from tauri.conf.json for versionName
-  4. versionCode in Android is auto-incremented via `tauri.properties` file
+  3. Commit the version changes
+  4. Create and push git tag: `git tag v0.1.17 && git push --tags`
+  5. Android build automatically uses version from tauri.conf.json for versionName
+  6. versionCode in Android is auto-incremented via `tauri.properties` file
 
 ## Project Structure
 - **Backend**: Node.js (server.js) spawns Python handlers (OCPP_handler.py) for each charge point
