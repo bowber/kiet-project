@@ -41,7 +41,8 @@ body {
     max-height: -webkit-fill-available;
 }
 
-/* Header */
+/* Header - Removed to avoid conflict with Android top bar */
+/*
 .mobile-header {
     background: linear-gradient(135deg, var(--header-bg) 0%, #0052cc 100%);
     color: white;
@@ -59,6 +60,7 @@ body {
     align-items: center;
     gap: 10px;
 }
+*/
 
 /* Main Content */
 .mobile-content {
@@ -72,7 +74,7 @@ body {
 .view {
     display: none;
     padding: 16px;
-    min-height: calc(100vh - 140px);
+    min-height: calc(100vh - 80px);
 }
 
 .view.active {
@@ -656,7 +658,7 @@ body {
 /* Payment Toast Notification */
 .payment-toast {
     position: fixed;
-    top: 80px;
+    top: 20px;
     left: 50%;
     transform: translateX(-50%) translateY(-20px);
     background: linear-gradient(135deg, #00875a 0%, #00b377 100%);
