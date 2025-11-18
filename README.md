@@ -192,29 +192,22 @@ docker-compose logs -f app
 
 ## Mobile App
 
-📱 **NEW: Tauri v2 Mobile Application**
+📱 **Tauri v2 Mobile Application**
 
-The customer portal has been converted into a native mobile app for Android and iOS!
+The customer portal is available as a native mobile app for Android!
 
 **Location**: `mobile-app/`
 
-**Quick Start**:
-```bash
-cd mobile-app
-./quickstart.sh
-```
-
 **Features**:
-- Native Android and iOS apps
+- Native Android app
 - QR code scanner for quick connection
 - WebSocket OCPP 1.6 support
-- Offline-capable
+- Customer charge point simulation interface
 - Native performance
 
-**Documentation**:
-- [Mobile App README](mobile-app/README.md) - Complete documentation
-- [Quick Start Guide](mobile-app/QUICKSTART.md) - Step-by-step setup
-- [Deployment Checklist](mobile-app/DEPLOYMENT_CHECKLIST.md) - Pre-release checklist
+**Releases**:
+- APK builds are automatically generated via GitHub Actions
+- Download the latest release from the [Releases page](https://github.com/bowber/kiet-project/releases)
 
 ## Development
 
