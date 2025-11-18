@@ -32,5 +32,6 @@ npm-debug.log*
 
 # Signing keys and signed APKs
 *.keystore
+*.keystore.base64
 *-signed.apk
 *.idsig

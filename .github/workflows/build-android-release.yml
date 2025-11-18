@@ -91,23 +91,21 @@ jobs:
           # Verify APK was created
           ls -lh ocpp-mobile-client.apk
       
+      - name: Decode and setup keystore
+        run: |
+          cd mobile-app
+          
+          # Decode base64 keystore from GitHub Secrets
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ocpp-signing-key.keystore
+          
+          # Verify keystore was created
+          ls -lh ocpp-signing-key.keystore
+      
       - name: Sign APK with apksigner (v2/v3)
         run: |
           cd mobile-app
           
-          # Generate keystore inside Docker (has Java already)
-          docker run --rm -v "$(pwd):/app" ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest sh -c "\
-            keytool -genkey -v \
-              -keystore /app/ocpp-signing-key.keystore \
-              -alias ocpp-mobile \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname 'CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN'"
-          
-          # Align, sign, and verify in one Docker run to save overhead
+          # Align, sign, and verify in one Docker run
           docker run --rm -v "$(pwd):/app" ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest sh -c "\
             /opt/android-sdk/build-tools/33.0.0/zipalign -v -p 4 \
               /app/ocpp-mobile-client.apk \
@@ -115,8 +113,8 @@ jobs:
             /opt/android-sdk/build-tools/33.0.0/apksigner sign \
               --ks /app/ocpp-signing-key.keystore \
               --ks-key-alias ocpp-mobile \
-              --ks-pass pass:android \
-              --key-pass pass:android \
+              --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
               --out /app/ocpp-mobile-client-signed.apk \
               /app/ocpp-mobile-client-aligned.apk && \
             /opt/android-sdk/build-tools/33.0.0/apksigner verify \
