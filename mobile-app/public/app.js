@@ -394,9 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="amount-label">Amount:</span>
                         <span class="amount-value">0 VND</span>
                     </div>
-                    <button class="action-btn back-btn vietqr-back-btn">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
                 </div>
                 
                 <!-- Stripe Payment Section -->
@@ -497,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 proceedPaymentBtn: this.element.querySelector('.proceed-payment-btn'),
                 // VietQR section elements
                 vietqrSection: this.element.querySelector('.vietqr-section'),
-                vietqrBackBtn: this.element.querySelector('.vietqr-back-btn'),
                 vietqrImage: this.element.querySelector('.vietqr-image'),
                 amountValue: this.element.querySelector('.amount-value'),
                 // Stripe section elements
@@ -709,11 +705,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.paymentMethodBackBtn.addEventListener('click', () => {
                 this.dom.paymentMethodSection.style.display = 'none';
                 this.showPaymentSection();
-            });
-            
-            this.dom.vietqrBackBtn.addEventListener('click', () => {
-                this.dom.vietqrSection.style.display = 'none';
-                this.dom.paymentMethodSection.style.display = 'block';
             });
             
             this.dom.stripeBackBtn.addEventListener('click', () => {
