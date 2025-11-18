@@ -25,7 +25,13 @@
       "minimumSystemVersion": "13.0"
     },
     "android": {
-      "minSdkVersion": 24
+      "minSdkVersion": 24,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE"
+      ]
     }
   },
   "app": {
@@ -40,7 +46,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws: wss: http: https:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com",
+      "csp": "default-src 'self'; connect-src 'self' ws: wss: http: https:; img-src 'self' data: https:; media-src 'self' data: mediastream:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
