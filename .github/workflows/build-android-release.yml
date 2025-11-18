@@ -24,6 +24,7 @@ jobs:
       - name: Install Tauri CLI
         run: |
           npm install -g @tauri-apps/cli@latest
+          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
       
       - name: Install Android SDK components
         run: |
@@ -42,12 +43,12 @@ jobs:
       - name: Initialize Android project
         run: |
           cd mobile-app
-          cargo tauri android init
+          npx tauri android init
       
       - name: Build Android APK
         run: |
           cd mobile-app
-          cargo tauri android build
+          npx tauri android build
           
           # Copy unsigned APK to working directory
           cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk ocpp-mobile-client-unsigned.apk
