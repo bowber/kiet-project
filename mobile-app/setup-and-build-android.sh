@@ -71,14 +71,14 @@ echo "✅ Android project initialized"
 echo ""
 echo "📱 Step 8: Building Android APK..."
 echo "This may take 5-10 minutes for the first build..."
-cargo tauri android build --release
+cargo tauri android build
 
 # Step 9: Show results
 echo ""
 echo "🎉 BUILD COMPLETE!"
 echo "=================="
 echo ""
-APK_PATH="$PROJECT_DIR/gen/android/app/build/outputs/apk/release/app-release.apk"
+APK_PATH="$PROJECT_DIR/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
 if [ -f "$APK_PATH" ]; then
     echo "✅ APK Location: $APK_PATH"
     ls -lh "$APK_PATH"

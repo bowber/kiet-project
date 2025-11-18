@@ -1,325 +1,550 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const chargersContainer = document.getElementById('chargers-container');
-    const chargePointCards = new Map();
-    const globalLogBody = document.getElementById('global-log-body');
-    const MAX_LOG_ROWS = 100;
+    // --- VIEW MANAGEMENT ---
+    const navLinks = document.querySelectorAll('.nav-link');
+    const views = document.querySelectorAll('.view');
+    
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            navLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            const targetViewId = link.dataset.view;
+            views.forEach(view => {
+                view.style.display = view.id === targetViewId ? 'block' : 'none';
+            });
+        });
+    });
 
-    // Kiểm tra xem các phần tử cần thiết có tồn tại không
-    if (!chargersContainer) {
-        console.error('Error: Element with id "chargers-container" not found!');
-        return;
-    }
-    if (!globalLogBody) {
-        console.error('Error: Element with id "global-log-body" not found!');
-        return;
-    }
+    // --- OCPP CONNECTION LOGIC ---
+    const connectBtn = document.getElementById('connect-btn');
+    const backendUrlInput = document.getElementById('backend-url-input');
+    const chargeboxIdInput = document.getElementById('chargebox-id-input');
+    const statusBanner = document.querySelector('.connection-status-banner');
+    const connectorsContainer = document.getElementById('connectors-container');
+    const toggleScannerBtn = document.getElementById('toggle-scanner-btn');
+    const qrReaderElement = document.getElementById('qr-reader');
+    
+    let websocket = null;
+    let chargePoint = null;
+    let html5QrCode = null;
+    let isScanning = false;
 
-    let ws; 
+    // --- QR CODE SCANNER ---
+    const startScanner = async () => {
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            
+            qrReaderElement.classList.add('active');
+            toggleScannerBtn.classList.add('active');
+            toggleScannerBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop Scanner';
+            isScanning = true;
 
-    function sendRemoteCommand(command, chargePointId, params = {}) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            const message = { type: 'remoteCommand', command, chargePointId, params };
-            ws.send(JSON.stringify(message));
-            console.log('Sent command:', message);
-        } else {
-            alert('Không thể gửi lệnh. Mất kết nối tới server.');
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                onScanError
+            );
+        } catch (err) {
+            console.error("Unable to start scanner:", err);
+            alert("Camera access denied or not available. Please use manual entry.");
+            stopScanner();
         }
-    }
+    };
 
-    function parseOcppMessage(logData) {
-        const { direction, message, action: originalAction, chargePointId } = logData;
-        const [msgType, msgId, actionOrPayload, payload] = message;
-
-        if (direction === 'request' && chargePointId === 'CSMS_Dashboard') {
-             return { action: actionOrPayload, payload: payload };
+    const stopScanner = async () => {
+        if (html5QrCode && isScanning) {
+            try {
+                await html5QrCode.stop();
+                qrReaderElement.classList.remove('active');
+                toggleScannerBtn.classList.remove('active');
+                toggleScannerBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Start Scanner';
+                isScanning = false;
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
         }
-        if (direction === 'request') return { action: actionOrPayload, payload };
-        if (direction === 'response') return { action: originalAction || 'Response', payload: actionOrPayload };
-        if (direction === 'info') return { action: 'Info', payload: { message: message[1] }};
-        return { action: 'Unknown', payload: {} };
-    }
+    };
 
-    function addLogRow(data) {
-        const { action, payload } = parseOcppMessage(data);
-        const row = document.createElement('tr');
-        const isRequest = data.direction === 'request';
-        const directionClass = isRequest ? 'request' : 'response';
-        const directionArrow = isRequest ? '➡️' : '⬅️';
-        const directionText = data.chargePointId === 'CSMS_Dashboard' ? 'CSMS' : data.chargePointId;
-
-        row.innerHTML = `
-            <td>${new Date().toLocaleTimeString()}</td>
-            <td class="direction-${directionClass}">${directionArrow} ${isRequest ? 'To' : 'From'}</td>
-            <td>${directionText}</td>
-            <td>${action}</td>
-            <td class="payload-cell"><pre>${JSON.stringify(payload, null, 2)}</pre></td>
-        `;
+    const onScanSuccess = (decodedText) => {
+        console.log(`QR Code detected: ${decodedText}`);
+        stopScanner();
+        parseAndFillFromUrl(decodedText);
         
-        if(data.direction === 'info') {
-            row.classList.add('info-log');
-            row.querySelector('td:nth-child(2)').textContent = 'ℹ️';
-        }
+        // Show success message
+        statusBanner.style.display = 'block';
+        statusBanner.className = 'connection-status-banner success';
+        statusBanner.textContent = 'QR Code scanned successfully! Click Connect to proceed.';
+    };
 
-        globalLogBody.prepend(row);
-        if (globalLogBody.rows.length > MAX_LOG_ROWS) {
-            globalLogBody.deleteRow(-1);
+    const onScanError = (error) => {
+        // Silent error handling for continuous scanning
+    };
+
+    const parseAndFillFromUrl = (url) => {
+        try {
+            const urlObj = new URL(url);
+            const stationId = urlObj.searchParams.get('stationId');
+            
+            if (stationId) {
+                // Extract protocol and host from current location or scanned URL
+                const protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+                const backendUrl = `${protocol}//${urlObj.host}`;
+                
+                backendUrlInput.value = backendUrl;
+                chargeboxIdInput.value = stationId;
+                
+                console.log(`Auto-filled: Backend=${backendUrl}, Station=${stationId}`);
+            }
+        } catch (err) {
+            console.error("Invalid URL format:", err);
+            alert("Invalid QR code format. Please scan a valid station QR code.");
         }
+    };
+
+    // Toggle scanner on button click
+    toggleScannerBtn.addEventListener('click', () => {
+        if (isScanning) {
+            stopScanner();
+        } else {
+            startScanner();
+        }
+    });
+
+    // Check URL parameters on page load
+    const urlParams = new URLSearchParams(window.location.search);
+    const stationIdParam = urlParams.get('stationId');
+    
+    if (stationIdParam) {
+        // Auto-fill from URL parameters
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const backendUrl = `${protocol}//${window.location.host}`;
+        backendUrlInput.value = backendUrl;
+        chargeboxIdInput.value = stationIdParam;
+        
+        // Switch to connection view
+        navLinks.forEach(l => l.classList.remove('active'));
+        document.querySelector('[data-view="connection-view"]').classList.add('active');
+        views.forEach(view => {
+            view.style.display = view.id === 'connection-view' ? 'block' : 'none';
+        });
+        
+        // Show success banner
+        statusBanner.style.display = 'block';
+        statusBanner.className = 'connection-status-banner success';
+        statusBanner.textContent = `Station ${stationIdParam} loaded from QR code. Click Connect to proceed.`;
     }
 
-    class ChargePointCard {
-        constructor(id, initialState) {
-            this.id = id;
-            this.state = { energy: 0, ...initialState };
-            this.render();
-            this.updateAll(initialState);
+    const generateUniqueId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    const sendMessage = (type, uniqueId, action, payload = {}) => {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            const message = [type, uniqueId, action, payload];
+            websocket.send(JSON.stringify(message));
+            console.log('SENT:', message);
+            return message;
+        }
+        return null;
+    };
+    
+    const sendRequest = (action, payload) => sendMessage(2, generateUniqueId(), action, payload);
+    const sendResponse = (uniqueId, payload) => sendMessage(3, uniqueId, payload);
+
+
+    connectBtn.addEventListener('click', () => {
+        const backendUrl = backendUrlInput.value.trim();
+        const chargeboxId = chargeboxIdInput.value.trim();
+
+        if (!backendUrl || !chargeboxId) {
+            alert('Please provide both Backend URL and Chargebox ID.');
+            return;
         }
 
-        render() {
+        const fullUrl = `${backendUrl}/${chargeboxId}`;
+        statusBanner.style.display = 'block';
+        statusBanner.className = 'connection-status-banner';
+        statusBanner.textContent = `Connecting to ${fullUrl}...`;
+
+        if (websocket) websocket.close();
+
+        websocket = new WebSocket(fullUrl);
+
+        websocket.onopen = () => {
+            statusBanner.classList.add('success');
+            statusBanner.textContent = `Successfully connected to ${chargeboxId}.`;
+            chargePoint = new ChargePointStatus(chargeboxId, sendRequest, sendResponse);
+            connectorsContainer.innerHTML = '';
+            connectorsContainer.appendChild(chargePoint.getElement());
+            
+            sendRequest("BootNotification", { chargePointVendor: "MicroOcppUI", chargePointModel: "WebSim" });
+        };
+
+        websocket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log('RECEIVED:', message);
+            if (chargePoint) {
+                chargePoint.handleMessage(message);
+            }
+        };
+
+        websocket.onerror = () => {
+            statusBanner.classList.add('error');
+            statusBanner.textContent = `Error while connecting to ${fullUrl}.`;
+        };
+        
+        websocket.onclose = () => {
+             if (chargePoint) {
+                statusBanner.classList.add('error');
+                statusBanner.textContent = `Connection with ${chargeboxId} closed.`;
+                chargePoint = null;
+             }
+        };
+    });
+
+    // --- CHARGE POINT STATUS CLASS ---
+    class ChargePointStatus {
+        constructor(id, sendRequestCallback, sendResponseCallback) {
+            this.id = id;
+            this.sendRequest = sendRequestCallback;
+            this.sendResponse = sendResponseCallback;
+            this.transactionId = null;
+            this.meterValue = 0;
+            this.meterValueIntervalId = null;
+            this.isPluggedIn = false;
+            this.isEvReady = false;
+
+            // --- MỚI: Kho cấu hình giả lập ---
+            this.configuration = {
+                'HeartbeatInterval': '60',
+                'ConnectionTimeOut': '120',
+                'SupportedFeatureProfiles': 'Core,RemoteTrigger,Configuration',
+                'ChargeProfileMaxStackLevel': '10',
+                'AllowOfflineTxForUnknownId': 'false'
+            };
+            
+            this.createElement();
+            this.cacheDOMElements();
+            this.addEventListeners();
+            this.updateStatusUI('Offline');
+        }
+
+        createElement() {
             this.element = document.createElement('div');
-            this.element.className = 'charger-card';
-            this.element.id = `charger-${this.id}`;
+            this.element.className = 'status-card';
             this.element.innerHTML = `
-                <div class="card-header">
-                    <h3><i class="fa-solid fa-charging-station"></i> ${this.id}</h3>
-                    <div class="header-icons">
-                        <i class="fa-solid fa-heart-pulse heartbeat-icon"></i>
-                        <div class="status-tag status-disconnected">
-                            <span class="status-dot"></span>
-                            <span class="status-text">Disconnected</span>
-                        </div>
+                <div class="status-display status-available">
+                    <div class="status-icon-wrapper"><i class="fas fa-check-circle status-icon"></i></div>
+                    <div class="status-text">Available</div>
+                </div>
+                <div class="connector-section">
+                    <div class="connector-header"><h4>Connector 1</h4><div class="live-indicator"><span class="dot"></span> LIVE</div></div>
+                    <div class="connector-status-grid">
+                        <button class="connector-status-item interactive plug-status-btn"><i class="fas fa-plug"></i><span class="connector-status-text">Unplugged</span></button>
+                        <button class="connector-status-item interactive ev-status-btn" disabled><i class="fas fa-car"></i><span class="ev-status-text">Ready</span></button>
                     </div>
                 </div>
-                <div class="card-body">
-                    <p><strong>Vendor:</strong> <span class="vendor-info">N/A</span></p>
-                    <p><strong>Model:</strong> <span class="model-info">N/A</span></p>
-                    <p><strong>Transaction:</strong> <span class="transaction-info">None</span></p>
-                    <p><strong>Energy:</strong> <span class="energy-info">0 kWh</span></p>
+                <div class="metrics-grid">
+                    <div class="metric-item"><span class="metric-label">Energy</span><span class="metric-value energy-value">0 Wh</span></div>
+                    <div class="metric-item"><span class="metric-label">Power</span><span class="metric-value power-value">0 W</span></div>
                 </div>
-                <div class="card-actions">
-                     <button class="action-btn main-action-btn" disabled>Start Charging</button>
-                </div>
-                <!-- Advanced Controls -->
-                <div class="advanced-controls">
-                    <div class="advanced-header">Advanced Controls <i class="fa-solid fa-chevron-down"></i></div>
-                    <div class="advanced-body">
-                        <button class="action-btn advanced-btn get-config-btn">Get Config</button>
-                        <button class="action-btn advanced-btn set-config-btn">Set Config</button>
-                        <button class="action-btn advanced-btn clear-cache-btn">Clear Cache</button>
-                        <button class="action-btn advanced-btn data-transfer-btn">Data Transfer</button>
+                <div class="action-footer"><button class="action-btn start-stop-btn" disabled>Start Charging</button></div>
+                <!-- MỚI: Khu vực hành động tùy chỉnh -->
+                <div class="custom-actions-section">
+                    <h4>Custom Actions</h4>
+                    <div class="data-transfer-form">
+                        <input type="text" class="vendor-id-input" placeholder="Vendor ID" value="WebSimVendor">
+                        <input type="text" class="data-input" placeholder="Data">
+                        <button class="action-btn send-data-transfer-btn">Send DataTransfer</button>
                     </div>
                 </div>
             `;
-            chargersContainer.appendChild(this.element);
-
-            this.dom = {
-                statusTag: this.element.querySelector('.status-tag'),
-                statusText: this.element.querySelector('.status-text'),
-                vendorInfo: this.element.querySelector('.vendor-info'),
-                modelInfo: this.element.querySelector('.model-info'),
-                transactionInfo: this.element.querySelector('.transaction-info'),
-                actionBtn: this.element.querySelector('.main-action-btn'),
-                energyInfo: this.element.querySelector('.energy-info'),
-                heartbeatIcon: this.element.querySelector('.heartbeat-icon'),
-                advancedHeader: this.element.querySelector('.advanced-header'),
-                getConfigBtn: this.element.querySelector('.get-config-btn'),
-                setConfigBtn: this.element.querySelector('.set-config-btn'),
-                clearCacheBtn: this.element.querySelector('.clear-cache-btn'),
-                dataTransferBtn: this.element.querySelector('.data-transfer-btn'),
-            };
-
-            this.addEventListeners();
         }
         
+        cacheDOMElements() {
+            this.dom = {
+                statusDisplay: this.element.querySelector('.status-display'),
+                statusIcon: this.element.querySelector('.status-icon'),
+                statusText: this.element.querySelector('.status-text'),
+                startStopBtn: this.element.querySelector('.start-stop-btn'),
+                plugStatusBtn: this.element.querySelector('.plug-status-btn'),
+                evStatusBtn: this.element.querySelector('.ev-status-btn'),
+                plugStatusText: this.element.querySelector('.plug-status-btn .connector-status-text'),
+                evStatusText: this.element.querySelector('.ev-status-btn .ev-status-text'),
+                energyValue: this.element.querySelector('.energy-value'),
+                powerValue: this.element.querySelector('.power-value'),
+                // MỚI: Cache các phần tử mới
+                vendorIdInput: this.element.querySelector('.vendor-id-input'),
+                dataInput: this.element.querySelector('.data-input'),
+                sendDataTransferBtn: this.element.querySelector('.send-data-transfer-btn'),
+            };
+        }
+
         addEventListeners() {
-            this.dom.actionBtn.addEventListener('click', () => {
-                if (this.state.transactionId) {
-                    sendRemoteCommand('RemoteStopTransaction', this.id, { transactionId: this.state.transactionId });
+            this.dom.startStopBtn.addEventListener('click', () => this.handleLocalStartStop());
+            
+            this.dom.plugStatusBtn.addEventListener('click', () => {
+                this.isPluggedIn = !this.isPluggedIn;
+                this.dom.plugStatusBtn.classList.toggle('active', this.isPluggedIn);
+                this.dom.plugStatusText.textContent = this.isPluggedIn ? 'Plugged In' : 'Unplugged';
+                
+                if (this.isPluggedIn) {
+                    this.dom.evStatusBtn.disabled = false;
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Unavailable", errorCode: "NoError" });
+                    this.updateStatusUI('Unavailable');
                 } else {
-                    const idTag = prompt("Enter ID Tag to start transaction:", "048E0B84");
-                    if (idTag) {
-                        sendRemoteCommand('RemoteStartTransaction', this.id, { idTag });
-                    }
+                    this.isEvReady = false;
+                    this.dom.evStatusBtn.disabled = true;
+                    this.dom.evStatusBtn.classList.remove('active');
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Available", errorCode: "NoError" });
+                    this.updateStatusUI('Available');
                 }
+                this.checkStartButtonState();
             });
 
-            this.dom.advancedHeader.addEventListener('click', () => {
-                this.element.querySelector('.advanced-controls').classList.toggle('open');
-            });
-
-            this.dom.getConfigBtn.addEventListener('click', () => {
-                const key = prompt("Enter configuration key to get (leave empty for all):");
-                sendRemoteCommand('GetConfiguration', this.id, { key: key ? [key] : [] });
-            });
-
-            this.dom.setConfigBtn.addEventListener('click', () => {
-                const key = prompt("Enter configuration key to change:");
-                if (!key) return;
-                const value = prompt(`Enter new value for ${key}:`);
-                if (value === null) return;
-                sendRemoteCommand('ChangeConfiguration', this.id, { key, value });
-            });
-
-            this.dom.clearCacheBtn.addEventListener('click', () => {
-                if (confirm(`Are you sure you want to send ClearCache to ${this.id}?`)) {
-                    sendRemoteCommand('ClearCache', this.id, {});
+            this.dom.evStatusBtn.addEventListener('click', () => {
+                this.isEvReady = !this.isEvReady;
+                this.dom.evStatusBtn.classList.toggle('active', this.isEvReady);
+                
+                if (this.isEvReady && this.isPluggedIn) {
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Preparing", errorCode: "NoError" });
+                    this.updateStatusUI('Preparing');
+                } else if (this.isPluggedIn) {
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Unavailable", errorCode: "NoError" });
+                    this.updateStatusUI('Unavailable');
                 }
+                
+                this.checkStartButtonState();
             });
 
-            this.dom.dataTransferBtn.addEventListener('click', () => {
-                const vendorId = prompt("Enter Vendor ID:", "MyVendor");
-                if (!vendorId) return;
-                const messageId = prompt("Enter Message ID (optional):");
-                const data = prompt("Enter data to transfer:");
-                sendRemoteCommand('DataTransfer', this.id, { vendorId, messageId, data });
+            // MỚI: Event listener để gửi DataTransfer
+            this.dom.sendDataTransferBtn.addEventListener('click', () => {
+                const vendorId = this.dom.vendorIdInput.value;
+                const data = this.dom.dataInput.value;
+                if (vendorId) {
+                    this.sendRequest('DataTransfer', { vendorId, data });
+                    this.dom.dataInput.value = '';
+                } else {
+                    alert('Vendor ID is required.');
+                }
             });
         }
 
-        updateActionButton() {
-            const btn = this.dom.actionBtn;
-            
-            if (this.state.transactionId) {
-                btn.textContent = 'Stop Charging';
-                btn.className = 'action-btn main-action-btn stop-btn';
-                btn.disabled = this.state.status !== 'Charging';
-            } else {
-                btn.textContent = 'Start Charging';
-                btn.className = 'action-btn main-action-btn start-btn';
-                btn.disabled = this.state.status !== 'Preparing';
+        getElement() { return this.element; }
+
+        handleMessage(message) {
+            const [type, uniqueId, actionOrPayload, payload] = message;
+
+            if (type === 2) { // It's a CALL (a command from the server)
+                this.handleRemoteCommand(uniqueId, actionOrPayload, payload);
+            } else if (type === 3) { // It's a CALLRESULT (a response to our request)
+                if (actionOrPayload.status === 'Accepted' && actionOrPayload.interval) {
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Available", errorCode: "NoError" });
+                    this.updateStatusUI('Available');
+                }
+
+                if (actionOrPayload.transactionId && actionOrPayload.idTagInfo && actionOrPayload.idTagInfo.status === 'Accepted') {
+                    console.log(`Transaction confirmed by server with ID: ${actionOrPayload.transactionId}`);
+                    this.transactionId = actionOrPayload.transactionId;
+                    
+                    this.sendRequest("StatusNotification", { connectorId: 1, status: "Charging", errorCode: "NoError" });
+                    this.startSendingMeterValues(this.transactionId);
+                    this.updateStatusUI('Charging');
+                }
             }
         }
 
-        updateAll(newState) {
-            this.state = { ...this.state, ...newState };
-            this.dom.vendorInfo.textContent = this.state.vendor || 'N/A';
-            this.dom.modelInfo.textContent = this.state.model || 'N/A';
-            this.updateConnectionStatus(true);
-            this.updateStatus(this.state.status);
-            this.updateTransaction(this.state.transactionId);
+        handleRemoteCommand(uniqueId, action, payload) {
+            console.log(`Handling remote command: ${action}`);
+            switch(action) {
+                case 'RemoteStartTransaction':
+                    if (this.isPluggedIn && this.isEvReady) {
+                        this.sendResponse(uniqueId, { status: "Accepted" });
+                        this.startChargingProcess(payload.idTag);
+                    } else {
+                        // Từ chối lệnh vì chưa sẵn sàng
+                        this.sendResponse(uniqueId, { status: "Rejected" });
+                        console.log("Rejected RemoteStart: Not Plugged in or Not Ready.");
+                    }
+                    break;
+                case 'RemoteStopTransaction':
+                    if (payload.transactionId === this.transactionId) {
+                        this.sendResponse(uniqueId, { status: "Accepted" });
+                        this.stopChargingProcess();
+                    } else {
+                        console.error(`Rejected StopTransaction. Server ID: ${payload.transactionId}, Local ID: ${this.transactionId}`);
+                        this.sendResponse(uniqueId, { status: "Rejected" });
+                    }
+                    break;
+                
+                // --- MỚI: Xử lý các lệnh nâng cao ---
+                case 'GetConfiguration':
+                    const requestedKeys = payload.key || Object.keys(this.configuration);
+                    const configurationKey = [];
+                    const unknownKey = [];
+                    requestedKeys.forEach(k => {
+                        if (this.configuration.hasOwnProperty(k)) {
+                            configurationKey.push({ key: k, readonly: false, value: this.configuration[k] });
+                        } else {
+                            unknownKey.push(k);
+                        }
+                    });
+                    this.sendResponse(uniqueId, { configurationKey, unknownKey });
+                    break;
+
+                case 'ChangeConfiguration':
+                    const { key, value } = payload;
+                    if (this.configuration.hasOwnProperty(key)) {
+                        this.configuration[key] = value;
+                        console.log(`Configuration updated: ${key} = ${value}`);
+                        this.sendResponse(uniqueId, { status: "Accepted" });
+                    } else {
+                        this.sendResponse(uniqueId, { status: "NotSupported" });
+                    }
+                    break;
+
+                case 'ClearCache':
+                    console.log("Simulating ClearCache... Authorization cache cleared.");
+                    this.sendResponse(uniqueId, { status: "Accepted" });
+                    break;
+                
+                case 'DataTransfer':
+                    console.log(`Received DataTransfer from server:`, payload);
+                    this.sendResponse(uniqueId, { status: "Accepted", data: "Server data successfully processed." });
+                    break;
+                
+                default:
+                     this.sendResponse(uniqueId, { status: "Rejected" });
+            }
+        }
+        
+        handleLocalStartStop() {
+            if (this.transactionId) {
+                this.stopChargingProcess();
+            } else {
+                this.startChargingProcess("LOCAL_TAG");
+            }
         }
 
-        updateConnectionStatus(isConnected) {
-            this.updateStatus(isConnected ? (this.state.status || 'Available') : 'Disconnected');
+        startChargingProcess(idTag) {
+            this.sendRequest("Authorize", { idTag });
+            this.sendRequest("StartTransaction", { 
+                connectorId: 1, 
+                idTag, 
+                meterStart: 0, 
+                timestamp: new Date().toISOString()
+            });
         }
 
-        updateStatus(status) {
-            this.state.status = status;
-            this.dom.statusTag.className = 'status-tag';
-            this.dom.statusText.textContent = status;
+        stopChargingProcess() {
+            this.sendRequest("StopTransaction", { 
+                transactionId: this.transactionId, 
+                meterStop: this.meterValue, 
+                timestamp: new Date().toISOString() 
+            });
+            this.stopSendingMeterValues();
+            this.sendRequest("StatusNotification", { connectorId: 1, status: "Finishing", errorCode: "NoError" });
+            this.updateStatusUI('Finishing');
+            
+            setTimeout(() => {
+                this.isEvReady = false;
+                this.dom.evStatusBtn.classList.remove('active');
+
+                const newStatus = this.isPluggedIn ? "Unavailable" : "Available";
+                this.sendRequest("StatusNotification", { connectorId: 1, status: newStatus, errorCode: "NoError" });
+                this.updateStatusUI(newStatus);
+                this.transactionId = null; 
+            }, 2000);
+        }
+        
+        checkStartButtonState() {
+            const isReadyToStart = this.isPluggedIn && this.isEvReady && this.dom.statusText.textContent === 'Preparing';
+            this.dom.startStopBtn.disabled = !isReadyToStart;
+        }
+
+        updateStatusUI(status) {
+            this.dom.statusDisplay.className = 'status-display';
+            const btn = this.dom.startStopBtn;
+
+            this.dom.plugStatusBtn.disabled = true;
+            this.dom.evStatusBtn.disabled = true;
+            btn.disabled = true;
 
             switch (status) {
                 case 'Available':
-                case 'Preparing':
+                    this.dom.statusDisplay.classList.add('status-available');
+                    this.dom.statusIcon.className = 'fas fa-check-circle status-icon';
+                    this.dom.statusText.textContent = 'Available';
+                    btn.textContent = 'Start Charging';
+                    btn.className = 'action-btn start-stop-btn start';
+                    this.dom.plugStatusBtn.disabled = false;
+                    break;
                 case 'Unavailable':
-                    this.dom.statusTag.classList.add('status-available');
+                    this.dom.statusDisplay.classList.add('status-unavailable');
+                    this.dom.statusIcon.className = 'fas fa-pause-circle status-icon';
+                    this.dom.statusText.textContent = 'Plugged In';
+                    btn.textContent = 'Start Charging';
+                    btn.className = 'action-btn start-stop-btn start';
+                    this.dom.plugStatusBtn.disabled = false;
+                    this.dom.evStatusBtn.disabled = false;
+                    break;
+                case 'Preparing':
+                    this.dom.statusDisplay.classList.add('status-charging');
+                    this.dom.statusIcon.className = 'fas fa-plug status-icon';
+                    this.dom.statusText.textContent = 'Preparing';
+                    btn.textContent = 'Start Charging';
+                    btn.className = 'action-btn start-stop-btn start';
+                    this.dom.plugStatusBtn.disabled = false;
+                    this.dom.evStatusBtn.disabled = false;
+                    this.checkStartButtonState();
                     break;
                 case 'Charging':
-                case 'SuspendedEVSE':
-                case 'SuspendedEV':
-                    this.dom.statusTag.classList.add('status-charging');
+                    this.dom.statusDisplay.classList.add('status-charging');
+                    this.dom.statusIcon.className = 'fas fa-bolt status-icon';
+                    this.dom.statusText.textContent = 'Charging';
+                    btn.textContent = 'Stop Charging';
+                    btn.className = 'action-btn start-stop-btn stop';
+                    btn.disabled = false;
                     break;
                 case 'Finishing':
-                    this.dom.statusTag.classList.add('status-finishing');
+                    this.dom.statusDisplay.classList.add('status-charging');
+                    this.dom.statusIcon.className = 'fas fa-spinner fa-spin status-icon';
+                    this.dom.statusText.textContent = 'Finishing...';
                     break;
-                case 'Faulted':
-                    this.dom.statusTag.classList.add('status-faulted');
-                    break;
-                default:
-                    this.dom.statusTag.classList.add('status-disconnected');
+                case 'Offline':
+                    this.dom.statusDisplay.classList.add('status-error');
+                    this.dom.statusIcon.className = 'fas fa-times-circle status-icon';
+                    this.dom.statusText.textContent = 'Offline';
                     break;
             }
-            this.updateActionButton();
-        }
-
-        updateTransaction(transactionId) {
-            this.state.transactionId = transactionId;
-            this.dom.transactionInfo.textContent = transactionId || 'None';
-            if (transactionId && !this.state.energy) {
-                 this.updateEnergy(0);
-            }
-            this.updateActionButton();
-        }
-
-        updateEnergy(wh) {
-            this.state.energy = wh;
-            const kwh = (wh / 1000).toFixed(2);
-            this.dom.energyInfo.textContent = `${kwh} kWh`;
         }
         
-        triggerHeartbeat() {
-            this.dom.heartbeatIcon.classList.add('active');
-            setTimeout(() => {
-                this.dom.heartbeatIcon.classList.remove('active');
-            }, 1200);
+        startSendingMeterValues(txId) {
+            this.meterValue = 0;
+            if (this.meterValueIntervalId) clearInterval(this.meterValueIntervalId);
+            this.meterValueIntervalId = setInterval(() => {
+                this.meterValue += 100;
+                const power = Math.floor(Math.random() * (7000 - 6000 + 1) + 6000);
+                this.dom.energyValue.textContent = `${this.meterValue} Wh`;
+                this.dom.powerValue.textContent = `${power} W`;
+                this.sendRequest("MeterValues", {
+                    connectorId: 1,
+                    transactionId: txId,
+                    meterValue: [{ timestamp: new Date().toISOString(), sampledValue: [{ value: this.meterValue.toString(), unit: "Wh" }] }]
+                });
+            }, 5000);
+        }
+        
+        stopSendingMeterValues() {
+            clearInterval(this.meterValueIntervalId);
+            this.meterValue = 0;
+            this.dom.energyValue.textContent = '0 Wh';
+            this.dom.powerValue.textContent = '0 W';
         }
     }
-
-    function connectDashboard() {
-        const wsUrl = `ws://${window.location.host}/dashboard`;
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => console.log("Dashboard connected to CSMS.");
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const { type, id } = data;
-
-            if (type === 'log') {
-                addLogRow(data);
-                return;
-            }
-            
-            if (type === 'fullStatus') {
-                chargersContainer.innerHTML = '';
-                chargePointCards.clear();
-                data.chargePoints.forEach(cpState => {
-                    if (!chargePointCards.has(cpState.id)) {
-                        chargePointCards.set(cpState.id, new ChargePointCard(cpState.id, cpState));
-                    }
-                });
-                return;
-            }
-            
-            if (!id) return;
-
-            let card = chargePointCards.get(id);
-            if (!card && (type === 'connect' || type === 'boot')) {
-                card = new ChargePointCard(data.id, data.state);
-                chargePointCards.set(data.id, card);
-            }
-            
-            if (!card) return;
-
-            switch (type) {
-                case 'connect':
-                case 'boot':
-                    card.updateAll(data.state);
-                    break;
-                case 'disconnect':
-                    card.updateConnectionStatus(false);
-                    break;
-                case 'status':
-                    card.updateStatus(data.status);
-                    break;
-                case 'transactionStart':
-                    card.updateTransaction(data.transactionId);
-                    break;
-                case 'transactionStop':
-                    card.updateTransaction(null);
-                    break;
-                case 'meterValue':
-                    card.updateEnergy(data.value);
-                    break;
-                case 'heartbeat':
-                    card.triggerHeartbeat();
-                    break;
-            }
-        };
-
-        ws.onclose = () => {
-            console.log("Dashboard disconnected. Reconnecting...");
-            chargePointCards.forEach(card => card.updateConnectionStatus(false));
-            setTimeout(connectDashboard, 3000);
-        };
-    }
-    
-    connectDashboard();
 });

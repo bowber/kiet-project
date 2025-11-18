@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# APK Signing Script
-# This script generates a keystore and signs the APK for installation
+# APK Signing Script for local development
+# Signs the APK using apksigner (modern Android signature scheme v2/v3)
 
 set -e
 
@@ -9,7 +9,10 @@ cd "$(dirname "$0")"
 
 KEYSTORE_FILE="ocpp-signing-key.keystore"
 KEYSTORE_ALIAS="ocpp-mobile"
+KEYSTORE_PASS="android"
+KEY_PASS="android"
 APK_UNSIGNED="gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
+APK_ALIGNED="ocpp-mobile-client-aligned.apk"
 APK_SIGNED="ocpp-mobile-client-signed.apk"
 
 echo "🔐 APK Signing Script"
@@ -19,17 +22,34 @@ echo ""
 # Check if unsigned APK exists
 if [ ! -f "$APK_UNSIGNED" ]; then
     echo "❌ Error: Unsigned APK not found at: $APK_UNSIGNED"
-    echo "   Please build the APK first with: ./build-android-docker.sh"
+    echo "   Please build the APK first with: cargo tauri android build"
+    exit 1
+fi
+
+# Check for ANDROID_HOME or ANDROID_SDK_ROOT
+if [ -z "$ANDROID_HOME" ]; then
+    if [ -z "$ANDROID_SDK_ROOT" ]; then
+        echo "❌ Error: ANDROID_HOME or ANDROID_SDK_ROOT not set"
+        echo "   Please set one of them to your Android SDK location"
+        exit 1
+    else
+        ANDROID_SDK="$ANDROID_SDK_ROOT"
+    fi
+else
+    ANDROID_SDK="$ANDROID_HOME"
+fi
+
+# Check if build-tools exist
+BUILD_TOOLS="$ANDROID_SDK/build-tools/33.0.0"
+if [ ! -d "$BUILD_TOOLS" ]; then
+    echo "❌ Error: Android build-tools 33.0.0 not found at: $BUILD_TOOLS"
+    echo "   Please install with: sdkmanager 'build-tools;33.0.0'"
     exit 1
 fi
 
 # Generate keystore if it doesn't exist
 if [ ! -f "$KEYSTORE_FILE" ]; then
     echo "📝 Keystore not found. Creating new keystore..."
-    echo ""
-    echo "⚠️  You will be asked for:"
-    echo "   - Keystore password (remember this!)"
-    echo "   - Personal details (can use dummy data for testing)"
     echo ""
     
     keytool -genkey -v \
@@ -38,8 +58,8 @@ if [ ! -f "$KEYSTORE_FILE" ]; then
         -keyalg RSA \
         -keysize 2048 \
         -validity 10000 \
-        -storepass android \
-        -keypass android \
+        -storepass "$KEYSTORE_PASS" \
+        -keypass "$KEY_PASS" \
         -dname "CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN"
     
     echo ""
@@ -49,49 +69,42 @@ else
 fi
 
 echo ""
-echo "🔑 Signing APK..."
+echo "🔧 Step 1: Aligning APK..."
+$BUILD_TOOLS/zipalign -v -p 4 \
+    "$APK_UNSIGNED" \
+    "$APK_ALIGNED"
 
-# Method 1: Try using jarsigner (always available with JDK)
-if command -v jarsigner &> /dev/null; then
-    echo "   Using jarsigner..."
-    
-    # Copy unsigned APK
-    cp "$APK_UNSIGNED" "$APK_SIGNED"
-    
-    # Sign with jarsigner
-    jarsigner -verbose \
-        -sigalg SHA256withRSA \
-        -digestalg SHA-256 \
-        -keystore "$KEYSTORE_FILE" \
-        -storepass android \
-        -keypass android \
-        "$APK_SIGNED" \
-        "$KEYSTORE_ALIAS"
-    
-    echo ""
-    echo "✅ APK signed successfully!"
-    echo "📱 Signed APK: $APK_SIGNED"
-    echo ""
-    echo "📊 APK Details:"
-    ls -lh "$APK_SIGNED"
-    
-    echo ""
-    echo "✅ Verifying signature..."
-    jarsigner -verify -verbose -certs "$APK_SIGNED" | grep -E "(jar verified|certificate)"
-    
-else
-    echo "❌ Error: jarsigner not found"
-    echo "   Please install JDK: sudo apt-get install default-jdk"
-    exit 1
-fi
+echo ""
+echo "🔑 Step 2: Signing APK with apksigner (v2/v3 scheme)..."
+$BUILD_TOOLS/apksigner sign \
+    --ks "$KEYSTORE_FILE" \
+    --ks-key-alias "$KEYSTORE_ALIAS" \
+    --ks-pass pass:"$KEYSTORE_PASS" \
+    --key-pass pass:"$KEY_PASS" \
+    --out "$APK_SIGNED" \
+    "$APK_ALIGNED"
+
+echo ""
+echo "✅ Step 3: Verifying signature..."
+$BUILD_TOOLS/apksigner verify \
+    --verbose "$APK_SIGNED"
+
+# Clean up aligned APK
+rm -f "$APK_ALIGNED"
 
 echo ""
 echo "🎉 Done!"
+echo ""
+echo "📱 Signed APK: $APK_SIGNED"
+ls -lh "$APK_SIGNED"
 echo ""
 echo "📲 To install on your phone:"
 echo "   adb install $APK_SIGNED"
 echo ""
 echo "   Or transfer the file to your phone and install manually."
+echo ""
+echo "✅ This APK uses Android Signature Scheme v2/v3"
+echo "   It will work on all modern Android devices!"
 echo ""
 echo "⚠️  IMPORTANT: Keep $KEYSTORE_FILE safe!"
 echo "   You need it to sign updates to your app."
