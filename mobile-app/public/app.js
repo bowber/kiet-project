@@ -229,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.targetPowerLevel = 100;
             
             this.chargingStartTime = null;
+            this.chargingStartPercentage = null;
             this.chargingDuration = null; // in seconds
 
             this.configuration = {
@@ -332,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="charging-info">
                         <div class="charging-status-row">
                             <span class="charging-label">Charging</span>
-                            <span class="charging-percentage">${this.currentPowerLevel}%</span>
+                            <span class="charging-percentage">${this.currentPowerLevel}% → <span class="charging-target">100%</span></span>
                         </div>
                         <div class="progress-bar-container">
                             <div class="progress-bar-fill" style="width: ${this.currentPowerLevel}%"></div>
@@ -374,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Charging progress elements
                 chargingProgressSection: this.element.querySelector('.charging-progress-section'),
                 chargingPercentage: this.element.querySelector('.charging-percentage'),
+                chargingTarget: this.element.querySelector('.charging-target'),
                 progressBarFill: this.element.querySelector('.progress-bar-fill'),
                 timeRemaining: this.element.querySelector('.time-remaining'),
             };
@@ -549,10 +551,17 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.startStopBtn.textContent = 'Stop Charging';
             this.dom.startStopBtn.className = 'action-btn start-stop-btn stop';
             
+            // Set the target percentage display
+            this.dom.chargingTarget.textContent = `${this.targetPowerLevel}%`;
+            
             // Calculate charging duration
             const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
             this.chargingDuration = estimate.timeMinutes * 60; // convert to seconds
             this.chargingStartTime = Date.now();
+            
+            // Store the starting percentage for display
+            this.chargingStartPercentage = this.currentPowerLevel;
+            
             this.updateChargingProgress();
         }
 
@@ -564,13 +573,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!this.transactionId || !this.chargingStartTime) return;
             
             const elapsed = (Date.now() - this.chargingStartTime) / 1000; // seconds
-            const totalPercentageGain = this.targetPowerLevel - this.currentPowerLevel;
+            const totalPercentageGain = this.targetPowerLevel - this.chargingStartPercentage;
             const percentageGained = (elapsed / this.chargingDuration) * totalPercentageGain;
-            const currentPercentage = Math.min(this.currentPowerLevel + percentageGained, this.targetPowerLevel);
+            const currentPercentage = Math.min(this.chargingStartPercentage + percentageGained, this.targetPowerLevel);
             const remaining = Math.max(this.chargingDuration - elapsed, 0);
             
-            // Update UI
-            this.dom.chargingPercentage.textContent = `${Math.floor(currentPercentage)}%`;
+            // Update UI - Show "current% → target%" format
+            this.dom.chargingPercentage.innerHTML = `${Math.floor(currentPercentage)}% → <span class="charging-target">${this.targetPowerLevel}%</span>`;
             this.dom.progressBarFill.style.width = `${currentPercentage}%`;
             
             // Format remaining time

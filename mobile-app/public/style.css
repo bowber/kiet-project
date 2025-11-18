@@ -634,6 +634,10 @@ body {
     color: var(--primary-color);
 }
 
+.charging-target {
+    color: var(--success-color);
+}
+
 .progress-bar-container {
     width: 100%;
     height: 32px;
