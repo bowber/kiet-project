@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write  # Required for creating releases and uploading assets
+  packages: write  # Required for pushing Docker images to GHCR
 
 jobs:
   build-android:
@@ -36,15 +37,40 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
       
-      - name: Build Docker image for Android
+      - name: Set Docker image name
+        id: docker_image
         run: |
-          cd mobile-app
-          docker build -t ocpp-android-builder -f Dockerfile.android .
-          
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=ghcr.io/${REPO_OWNER}/ocpp-android-builder" >> $GITHUB_OUTPUT
+      
+      - name: Build and push Docker image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mobile-app
+          file: ./mobile-app/Dockerfile.android
+          push: true
+          tags: |
+            ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest
+            ${{ steps.docker_image.outputs.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+          cache-from: |
+            type=registry,ref=${{ steps.docker_image.outputs.IMAGE_NAME }}:build-cache
+            type=registry,ref=${{ steps.docker_image.outputs.IMAGE_NAME }}:latest
+          cache-to: type=registry,ref=${{ steps.docker_image.outputs.IMAGE_NAME }}:build-cache,mode=max
+          provenance: false
+      
+      - name: Verify Docker image
+        run: |
           echo "=== Disk space after Docker build ==="
           df -h
           
@@ -56,7 +82,7 @@ jobs:
           cd mobile-app
           
           # Run build and extract APK in one step to save space
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
+          docker run --rm -v "$(pwd):/app" ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest sh -c "\
             cargo tauri android init && \
             cargo tauri android build && \
             cp gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk /app/ocpp-mobile-client.apk && \
@@ -70,7 +96,7 @@ jobs:
           cd mobile-app
           
           # Generate keystore inside Docker (has Java already)
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
+          docker run --rm -v "$(pwd):/app" ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest sh -c "\
             keytool -genkey -v \
               -keystore /app/ocpp-signing-key.keystore \
               -alias ocpp-mobile \
@@ -82,7 +108,7 @@ jobs:
               -dname 'CN=OCPP Mobile, OU=Development, O=OCPP, L=Unknown, ST=Unknown, C=VN'"
           
           # Align, sign, and verify in one Docker run to save overhead
-          docker run --rm -v "$(pwd):/app" ocpp-android-builder sh -c "\
+          docker run --rm -v "$(pwd):/app" ${{ steps.docker_image.outputs.IMAGE_NAME }}:latest sh -c "\
             /opt/android-sdk/build-tools/33.0.0/zipalign -v -p 4 \
               /app/ocpp-mobile-client.apk \
               /app/ocpp-mobile-client-aligned.apk && \
