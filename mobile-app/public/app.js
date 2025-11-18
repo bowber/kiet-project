@@ -1,17 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- VIEW MANAGEMENT ---
-    const navLinks = document.querySelectorAll('.nav-link');
+    const navItems = document.querySelectorAll('.nav-item');
     const views = document.querySelectorAll('.view');
     
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
             e.preventDefault();
-            navLinks.forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
+            navItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
             
-            const targetViewId = link.dataset.view;
+            const targetViewId = item.dataset.view;
             views.forEach(view => {
-                view.style.display = view.id === targetViewId ? 'block' : 'none';
+                view.classList.toggle('active', view.id === targetViewId);
             });
         });
     });
@@ -129,10 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
         chargeboxIdInput.value = stationIdParam;
         
         // Switch to connection view
-        navLinks.forEach(l => l.classList.remove('active'));
+        navItems.forEach(i => i.classList.remove('active'));
         document.querySelector('[data-view="connection-view"]').classList.add('active');
         views.forEach(view => {
-            view.style.display = view.id === 'connection-view' ? 'block' : 'none';
+            view.classList.toggle('active', view.id === 'connection-view');
         });
         
         // Show success banner
