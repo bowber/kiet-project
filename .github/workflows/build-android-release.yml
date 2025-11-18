@@ -28,7 +28,7 @@ jobs:
             mobile-app/target/
             mobile-app/gen/android/.gradle/
             mobile-app/gen/android/app/build/
-          key: ${{ runner.os }}-cargo-android-${{ hashFiles('mobile-app/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('mobile-app/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-android-
       
