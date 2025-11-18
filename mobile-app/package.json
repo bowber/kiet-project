@@ -1,6 +1,6 @@
 {
   "name": "ocpp-mobile-client",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "OCPP 1.6 Mobile Client with Tauri v2",
   "scripts": {
     "tauri": "tauri"
