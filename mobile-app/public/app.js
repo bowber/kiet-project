@@ -353,9 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 <!-- Payment Method Selection -->
                 <div class="payment-method-section" style="display: none;">
-                    <button class="back-btn payment-method-back-btn">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
                     <div class="payment-method-header">
                         <h4><i class="fas fa-credit-card"></i> Select Payment Method</h4>
                         <p class="payment-instruction">Choose how you want to pay</p>
@@ -379,13 +376,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="action-btn proceed-payment-btn enabled">
                         <i class="fas fa-arrow-right"></i> Proceed to Payment
                     </button>
+                    <button class="action-btn back-btn payment-method-back-btn">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
                 </div>
                 
                 <!-- VietQR Payment Section -->
                 <div class="vietqr-section" style="display: none;">
-                    <button class="back-btn vietqr-back-btn">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
                     <div class="vietqr-header">
                         <h4><i class="fas fa-qrcode"></i> Scan to Pay</h4>
                         <p class="qr-instruction">Scan this QR code to complete payment</p>
@@ -397,13 +394,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="amount-label">Amount:</span>
                         <span class="amount-value">0 VND</span>
                     </div>
+                    <button class="action-btn back-btn vietqr-back-btn">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
                 </div>
                 
                 <!-- Stripe Payment Section -->
                 <div class="stripe-section" style="display: none;">
-                    <button class="back-btn stripe-back-btn">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
                     <div class="stripe-header">
                         <h4><i class="fab fa-cc-stripe"></i> Card Payment</h4>
                     </div>
@@ -440,6 +437,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <button class="action-btn stripe-pay-btn">
                             <i class="fas fa-lock"></i> Pay Now
+                        </button>
+                        <button class="action-btn back-btn stripe-back-btn">
+                            <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
                 </div>
