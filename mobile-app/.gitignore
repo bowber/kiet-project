@@ -3,7 +3,6 @@
 Cargo.lock
 
 # Tauri
-/gen
 
 # Mobile builds
 *.apk
