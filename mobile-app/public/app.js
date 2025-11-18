@@ -312,6 +312,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                 </div>
                 
+                <!-- VietQR Payment Section -->
+                <div class="vietqr-section" style="display: none;">
+                    <div class="vietqr-header">
+                        <h4><i class="fas fa-qrcode"></i> Scan to Pay</h4>
+                        <p class="qr-instruction">Scan this QR code to complete payment</p>
+                    </div>
+                    <div class="qr-code-container">
+                        <img class="vietqr-image" src="" alt="VietQR Payment">
+                    </div>
+                    <div class="payment-amount-display">
+                        <span class="amount-label">Amount:</span>
+                        <span class="amount-value">0 VND</span>
+                    </div>
+                </div>
+                
                 <!-- Charging Progress Section -->
                 <div class="charging-progress-section" style="display: none;">
                     <div class="charging-info">
@@ -352,12 +367,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 timeEstimate: this.element.querySelector('.time-estimate'),
                 costEstimate: this.element.querySelector('.cost-estimate'),
                 confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
+                // VietQR section elements
+                vietqrSection: this.element.querySelector('.vietqr-section'),
+                vietqrImage: this.element.querySelector('.vietqr-image'),
+                amountValue: this.element.querySelector('.amount-value'),
                 // Charging progress elements
                 chargingProgressSection: this.element.querySelector('.charging-progress-section'),
                 chargingPercentage: this.element.querySelector('.charging-percentage'),
                 progressBarFill: this.element.querySelector('.progress-bar-fill'),
                 timeRemaining: this.element.querySelector('.time-remaining'),
             };
+        }
+        
+        generateVietQR(amount) {
+            // VietQR API format: https://img.vietqr.io/image/[BANK_ID]-[ACCOUNT_NUMBER]-[TEMPLATE].png?amount=[AMOUNT]&addInfo=[DESCRIPTION]
+            const bankId = 'MB'; // MB Bank (you can change this)
+            const accountNumber = '0123456789'; // Your account number
+            const template = 'compact2'; // QR template style
+            const description = encodeURIComponent('Charging Payment');
+            
+            return `https://img.vietqr.io/image/${bankId}-${accountNumber}-${template}.png?amount=${amount}&addInfo=${description}&accountName=EV%20Charging`;
+        }
+        
+        showToast(message) {
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = 'payment-toast';
+            toast.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
         }
 
         calculateChargingEstimate(targetLevel) {
@@ -448,9 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Confirm payment and start charging
             this.dom.confirmPaymentBtn.addEventListener('click', () => {
-                this.hidePaymentSection();
-                this.showChargingProgress();
-                this.startChargingProcess("LOCAL_TAG");
+                const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
+                this.showVietQRPayment(estimate.cost);
             });
             
             // Stop charging button
@@ -468,6 +516,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         hidePaymentSection() {
             this.dom.paymentSection.style.display = 'none';
+        }
+
+        showVietQRPayment(amount) {
+            // Hide payment section
+            this.hidePaymentSection();
+            
+            // Generate VietQR code
+            const qrUrl = this.generateVietQR(amount);
+            this.dom.vietqrImage.src = qrUrl;
+            this.dom.amountValue.textContent = `${amount.toLocaleString()} VND`;
+            
+            // Show VietQR section
+            this.dom.vietqrSection.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                this.dom.vietqrSection.style.display = 'none';
+                this.showToast('Payment successful!');
+                
+                // Start charging after toast
+                setTimeout(() => {
+                    this.startChargingProcess('MOBILE_APP_USER');
+                    this.showChargingProgress();
+                }, 500);
+            }, 5000);
         }
 
         showChargingProgress() {

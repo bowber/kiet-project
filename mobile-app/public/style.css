@@ -504,6 +504,105 @@ body {
     color: var(--text-primary);
 }
 
+/* VietQR Payment Section */
+.vietqr-section {
+    padding: 24px 20px;
+    border-top: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    text-align: center;
+}
+
+.vietqr-header {
+    margin-bottom: 20px;
+}
+
+.vietqr-header h4 {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.qr-instruction {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.qr-code-container {
+    background-color: var(--surface-color);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: inline-block;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.vietqr-image {
+    max-width: 280px;
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+}
+
+.payment-amount-display {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.amount-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.amount-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--primary-color);
+}
+
+/* Payment Toast Notification */
+.payment-toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, #00875a 0%, #00b377 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 135, 90, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.payment-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.payment-toast i {
+    font-size: 24px;
+}
+
 /* Charging Progress Section */
 .charging-progress-section {
     padding: 24px 20px;
