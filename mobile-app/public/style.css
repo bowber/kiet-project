@@ -1279,3 +1279,8 @@ body {
     cursor: not-allowed;
     transform: none;
 }
+
+/* Match back button spacing with payment method selector */
+.stripe-form .back-btn {
+    margin-top: -4px;
+}
