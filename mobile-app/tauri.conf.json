@@ -25,13 +25,7 @@
       "minimumSystemVersion": "13.0"
     },
     "android": {
-      "minSdkVersion": 24,
-      "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.CAMERA",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.ACCESS_WIFI_STATE"
-      ]
+      "minSdkVersion": 24
     }
   },
   "app": {
