@@ -363,8 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 powerValue: this.element.querySelector('.power-value'),
                 // Payment section elements
                 paymentSection: this.element.querySelector('.payment-section'),
+                batteryCurrent: this.element.querySelector('.battery-current'),
                 targetSlider: this.element.querySelector('.target-slider'),
                 batteryTarget: this.element.querySelector('.battery-target'),
+                sliderLabels: this.element.querySelector('.slider-labels'),
                 timeEstimate: this.element.querySelector('.time-estimate'),
                 costEstimate: this.element.querySelector('.cost-estimate'),
                 confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
@@ -511,7 +513,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        refreshPaymentUI() {
+            // Update current battery level display
+            this.dom.batteryCurrent.textContent = `${this.currentPowerLevel}%`;
+            
+            // Update slider min value and current value
+            this.dom.targetSlider.min = this.currentPowerLevel;
+            this.dom.targetSlider.value = Math.max(this.currentPowerLevel, this.targetPowerLevel);
+            this.targetPowerLevel = parseInt(this.dom.targetSlider.value);
+            
+            // Update slider labels
+            this.dom.sliderLabels.innerHTML = `
+                <span>${this.currentPowerLevel}%</span>
+                <span>100%</span>
+            `;
+            
+            // Update target display
+            this.dom.batteryTarget.textContent = `${this.targetPowerLevel}%`;
+        }
+
         showPaymentSection() {
+            this.refreshPaymentUI();
             this.dom.paymentSection.style.display = 'block';
             this.updateEstimates();
         }
