@@ -343,6 +343,14 @@ body {
     transform: none;
 }
 
+.action-btn.enabled {
+    background-color: var(--success-color);
+}
+
+.action-btn.enabled:active {
+    background-color: #006644;
+}
+
 /* Payment Section */
 .payment-section {
     padding: 20px;

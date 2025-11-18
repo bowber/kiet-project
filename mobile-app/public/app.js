@@ -393,6 +393,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
             this.dom.timeEstimate.textContent = this.formatTime(estimate.timeMinutes);
             this.dom.costEstimate.textContent = `${estimate.cost.toLocaleString()} VND`;
+            
+            // Enable/disable and style button based on target level
+            if (this.targetPowerLevel > this.currentPowerLevel) {
+                this.dom.confirmPaymentBtn.disabled = false;
+                this.dom.confirmPaymentBtn.classList.add('enabled');
+            } else {
+                this.dom.confirmPaymentBtn.disabled = true;
+                this.dom.confirmPaymentBtn.classList.remove('enabled');
+            }
         }
 
         addEventListeners() {
