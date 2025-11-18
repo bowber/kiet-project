@@ -895,3 +895,295 @@ body {
 .nav-item:active {
     opacity: 0.7;
 }
+
+/* Payment Method Selection */
+.payment-method-section {
+    padding: 24px 20px;
+    border-top: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.payment-method-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.payment-method-header h4 {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.payment-instruction {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.payment-method-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.payment-method-btn {
+    background-color: var(--surface-color);
+    border: 3px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.payment-method-btn:active {
+    transform: scale(0.97);
+}
+
+.payment-method-btn.active {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, #deebff 0%, #b3d4ff 100%);
+    box-shadow: 0 4px 12px rgba(0, 82, 204, 0.2);
+}
+
+.payment-method-btn i {
+    font-size: 36px;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+}
+
+.payment-method-btn.active i {
+    color: var(--primary-color);
+}
+
+.payment-method-btn.vietqr-btn.active i {
+    color: #00875a;
+}
+
+.payment-method-btn.stripe-btn.active i {
+    color: #635bff;
+}
+
+.payment-method-btn .method-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.payment-method-btn .method-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.payment-amount-summary {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.summary-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--primary-color);
+}
+
+/* Stripe Payment Section */
+.stripe-section {
+    padding: 24px 20px;
+    border-top: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #f3f4ff 0%, #e8e9ff 100%);
+}
+
+.stripe-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.stripe-header h4 {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.stripe-header h4 i {
+    color: #635bff;
+}
+
+.stripe-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Card Display */
+.card-display {
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    border-radius: 16px;
+    padding: 24px;
+    color: white;
+    box-shadow: 0 8px 24px rgba(99, 91, 255, 0.3);
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-display::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+}
+
+.card-chip {
+    width: 48px;
+    height: 36px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border-radius: 6px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.card-chip::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.card-number-display {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    font-family: 'Courier New', monospace;
+}
+
+.card-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-holder-display {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.card-expiry-display {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+/* Stripe Form Inputs */
+.stripe-form .form-group {
+    margin-bottom: 0;
+}
+
+.stripe-form .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.stripe-form .form-group input {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: var(--surface-color);
+    transition: border-color 0.2s;
+}
+
+.stripe-form .form-group input:focus {
+    outline: none;
+    border-color: #635bff;
+    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.1);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stripe-amount-display {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.stripe-amount-display .amount-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.stripe-amount-display .amount-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: #635bff;
+}
+
+.stripe-pay-btn {
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    box-shadow: 0 4px 12px rgba(99, 91, 255, 0.3);
+}
+
+.stripe-pay-btn:active {
+    transform: scale(0.98);
+}
+
+.stripe-pay-btn:disabled {
+    background: #b3b0ff;
+    cursor: not-allowed;
+    transform: none;
+}

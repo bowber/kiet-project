@@ -231,6 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
             this.chargingStartTime = null;
             this.chargingStartPercentage = null;
             this.chargingDuration = null; // in seconds
+            
+            // Payment parameters
+            this.selectedPaymentMethod = 'vietqr'; // default payment method
+            this.currentPaymentAmount = 0;
 
             this.configuration = {
                 'HeartbeatInterval': '60',
@@ -309,7 +313,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <button class="action-btn confirm-payment-btn">
-                        <i class="fas fa-check-circle"></i> Start Charging
+                        <i class="fas fa-check-circle"></i> Continue to Payment
+                    </button>
+                </div>
+                
+                <!-- Payment Method Selection -->
+                <div class="payment-method-section" style="display: none;">
+                    <div class="payment-method-header">
+                        <h4><i class="fas fa-credit-card"></i> Select Payment Method</h4>
+                        <p class="payment-instruction">Choose how you want to pay</p>
+                    </div>
+                    <div class="payment-method-grid">
+                        <button class="payment-method-btn vietqr-btn active" data-method="vietqr">
+                            <i class="fas fa-qrcode"></i>
+                            <span class="method-name">VietQR</span>
+                            <span class="method-desc">Bank Transfer</span>
+                        </button>
+                        <button class="payment-method-btn stripe-btn" data-method="stripe">
+                            <i class="fab fa-cc-stripe"></i>
+                            <span class="method-name">Stripe</span>
+                            <span class="method-desc">Card Payment</span>
+                        </button>
+                    </div>
+                    <div class="payment-amount-summary">
+                        <span class="summary-label">Total Amount:</span>
+                        <span class="summary-value">0 VND</span>
+                    </div>
+                    <button class="action-btn proceed-payment-btn enabled">
+                        <i class="fas fa-arrow-right"></i> Proceed to Payment
                     </button>
                 </div>
                 
@@ -325,6 +356,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="payment-amount-display">
                         <span class="amount-label">Amount:</span>
                         <span class="amount-value">0 VND</span>
+                    </div>
+                </div>
+                
+                <!-- Stripe Payment Section -->
+                <div class="stripe-section" style="display: none;">
+                    <div class="stripe-header">
+                        <h4><i class="fab fa-cc-stripe"></i> Card Payment</h4>
+                    </div>
+                    <div class="stripe-form">
+                        <div class="card-display">
+                            <div class="card-chip"></div>
+                            <div class="card-number-display">•••• •••• •••• ••••</div>
+                            <div class="card-info-row">
+                                <span class="card-holder-display">CARD HOLDER</span>
+                                <span class="card-expiry-display">MM/YY</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="stripe-card-number">Card Number</label>
+                            <input type="text" id="stripe-card-number" placeholder="4242 4242 4242 4242" maxlength="19">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="stripe-expiry">Expiry Date</label>
+                                <input type="text" id="stripe-expiry" placeholder="MM/YY" maxlength="5">
+                            </div>
+                            <div class="form-group">
+                                <label for="stripe-cvc">CVC</label>
+                                <input type="text" id="stripe-cvc" placeholder="123" maxlength="3">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="stripe-name">Cardholder Name</label>
+                            <input type="text" id="stripe-name" placeholder="JOHN DOE">
+                        </div>
+                        <div class="stripe-amount-display">
+                            <span class="amount-label">Amount to Pay:</span>
+                            <span class="amount-value">0 VND</span>
+                        </div>
+                        <button class="action-btn stripe-pay-btn">
+                            <i class="fas fa-lock"></i> Pay Now
+                        </button>
                     </div>
                 </div>
                 
@@ -370,10 +443,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 timeEstimate: this.element.querySelector('.time-estimate'),
                 costEstimate: this.element.querySelector('.cost-estimate'),
                 confirmPaymentBtn: this.element.querySelector('.confirm-payment-btn'),
+                // Payment method selection elements
+                paymentMethodSection: this.element.querySelector('.payment-method-section'),
+                paymentMethodBtns: this.element.querySelectorAll('.payment-method-btn'),
+                vietqrMethodBtn: this.element.querySelector('.vietqr-btn'),
+                stripeMethodBtn: this.element.querySelector('.stripe-btn'),
+                summaryValue: this.element.querySelector('.summary-value'),
+                proceedPaymentBtn: this.element.querySelector('.proceed-payment-btn'),
                 // VietQR section elements
                 vietqrSection: this.element.querySelector('.vietqr-section'),
                 vietqrImage: this.element.querySelector('.vietqr-image'),
                 amountValue: this.element.querySelector('.amount-value'),
+                // Stripe section elements
+                stripeSection: this.element.querySelector('.stripe-section'),
+                stripeCardNumber: this.element.querySelector('#stripe-card-number'),
+                stripeExpiry: this.element.querySelector('#stripe-expiry'),
+                stripeCvc: this.element.querySelector('#stripe-cvc'),
+                stripeName: this.element.querySelector('#stripe-name'),
+                stripeAmountValue: this.element.querySelector('.stripe-amount-display .amount-value'),
+                stripePayBtn: this.element.querySelector('.stripe-pay-btn'),
+                cardNumberDisplay: this.element.querySelector('.card-number-display'),
+                cardHolderDisplay: this.element.querySelector('.card-holder-display'),
+                cardExpiryDisplay: this.element.querySelector('.card-expiry-display'),
                 // Charging progress elements
                 chargingProgressSection: this.element.querySelector('.charging-progress-section'),
                 chargingPercentage: this.element.querySelector('.charging-percentage'),
@@ -499,10 +590,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateEstimates();
             });
             
-            // Confirm payment and start charging
+            // Confirm payment and show payment method selector
             this.dom.confirmPaymentBtn.addEventListener('click', () => {
                 const estimate = this.calculateChargingEstimate(this.targetPowerLevel);
-                this.showVietQRPayment(estimate.cost);
+                this.currentPaymentAmount = estimate.cost;
+                this.showPaymentMethodSelector(estimate.cost);
+            });
+            
+            // Payment method selection buttons
+            this.dom.paymentMethodBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.dom.paymentMethodBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.selectedPaymentMethod = btn.dataset.method;
+                });
+            });
+            
+            // Proceed to payment button
+            this.dom.proceedPaymentBtn.addEventListener('click', () => {
+                if (this.selectedPaymentMethod === 'vietqr') {
+                    this.showVietQRPayment(this.currentPaymentAmount);
+                } else if (this.selectedPaymentMethod === 'stripe') {
+                    this.showStripePayment(this.currentPaymentAmount);
+                }
+            });
+            
+            // Stripe card input formatting
+            this.dom.stripeCardNumber.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\s/g, '');
+                let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                e.target.value = formattedValue;
+                this.dom.cardNumberDisplay.textContent = formattedValue || '•••• •••• •••• ••••';
+            });
+            
+            this.dom.stripeExpiry.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 2) {
+                    value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                }
+                e.target.value = value;
+                this.dom.cardExpiryDisplay.textContent = value || 'MM/YY';
+            });
+            
+            this.dom.stripeName.addEventListener('input', (e) => {
+                this.dom.cardHolderDisplay.textContent = e.target.value.toUpperCase() || 'CARD HOLDER';
+            });
+            
+            // Stripe pay button
+            this.dom.stripePayBtn.addEventListener('click', () => {
+                this.processStripePayment();
             });
             
             // Stop charging button
@@ -542,14 +678,36 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.paymentSection.style.display = 'none';
         }
 
-        showVietQRPayment(amount) {
+        showPaymentMethodSelector(amount) {
             // Hide payment section
             this.hidePaymentSection();
+            
+            // Set default payment method
+            this.selectedPaymentMethod = 'vietqr';
+            
+            // Update amount display
+            this.dom.summaryValue.textContent = `${amount.toLocaleString()} VND`;
+            
+            // Lock plug and EV buttons during payment
+            this.dom.plugStatusBtn.disabled = true;
+            this.dom.evStatusBtn.disabled = true;
+            
+            // Show payment method selector
+            this.dom.paymentMethodSection.style.display = 'block';
+        }
+
+        showVietQRPayment(amount) {
+            // Hide payment method selector
+            this.dom.paymentMethodSection.style.display = 'none';
             
             // Generate VietQR code
             const qrUrl = this.generateVietQR(amount);
             this.dom.vietqrImage.src = qrUrl;
             this.dom.amountValue.textContent = `${amount.toLocaleString()} VND`;
+            
+            // Keep buttons locked during payment
+            this.dom.plugStatusBtn.disabled = true;
+            this.dom.evStatusBtn.disabled = true;
             
             // Show VietQR section
             this.dom.vietqrSection.style.display = 'block';
@@ -565,6 +723,81 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.showChargingProgress();
                 }, 500);
             }, 5000);
+        }
+
+        showStripePayment(amount) {
+            // Hide payment method selector
+            this.dom.paymentMethodSection.style.display = 'none';
+            
+            // Update amount display
+            this.dom.stripeAmountValue.textContent = `${amount.toLocaleString()} VND`;
+            
+            // Reset form
+            this.dom.stripeCardNumber.value = '';
+            this.dom.stripeExpiry.value = '';
+            this.dom.stripeCvc.value = '';
+            this.dom.stripeName.value = '';
+            this.dom.cardNumberDisplay.textContent = '•••• •••• •••• ••••';
+            this.dom.cardHolderDisplay.textContent = 'CARD HOLDER';
+            this.dom.cardExpiryDisplay.textContent = 'MM/YY';
+            
+            // Keep buttons locked during payment
+            this.dom.plugStatusBtn.disabled = true;
+            this.dom.evStatusBtn.disabled = true;
+            
+            // Show Stripe section
+            this.dom.stripeSection.style.display = 'block';
+        }
+
+        processStripePayment() {
+            // Validate inputs
+            const cardNumber = this.dom.stripeCardNumber.value.replace(/\s/g, '');
+            const expiry = this.dom.stripeExpiry.value;
+            const cvc = this.dom.stripeCvc.value;
+            const name = this.dom.stripeName.value;
+            
+            if (!cardNumber || cardNumber.length < 13) {
+                alert('Please enter a valid card number');
+                return;
+            }
+            
+            if (!expiry || expiry.length !== 5) {
+                alert('Please enter expiry date (MM/YY)');
+                return;
+            }
+            
+            if (!cvc || cvc.length < 3) {
+                alert('Please enter CVC');
+                return;
+            }
+            
+            if (!name) {
+                alert('Please enter cardholder name');
+                return;
+            }
+            
+            // Disable button and show processing
+            this.dom.stripePayBtn.disabled = true;
+            this.dom.stripePayBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            
+            // Simulate payment processing (2 seconds)
+            setTimeout(() => {
+                // Hide Stripe section
+                this.dom.stripeSection.style.display = 'none';
+                
+                // Re-enable button
+                this.dom.stripePayBtn.disabled = false;
+                this.dom.stripePayBtn.innerHTML = '<i class="fas fa-lock"></i> Pay Now';
+                
+                // Show success toast
+                this.showToast('Payment successful!');
+                
+                // Start charging after toast
+                setTimeout(() => {
+                    this.startChargingProcess('MOBILE_APP_USER');
+                    this.showChargingProgress();
+                }, 500);
+            }, 2000);
         }
 
         showChargingProgress() {
