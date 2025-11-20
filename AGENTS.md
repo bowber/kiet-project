@@ -14,8 +14,9 @@
   2. `mobile-app/Cargo.toml` - Update `version` field (line 3) - should match tauri.conf.json
   3. Commit the version changes
   4. Create and push git tag: `git tag v0.1.17 && git push --tags`
-  5. Android build automatically uses version from tauri.conf.json for versionName
-  6. versionCode in Android is auto-incremented via `tauri.properties` file
+  5. **IMPORTANT**: Push the commits too: `git push origin main` (tags don't push the code!)
+  6. Android build automatically uses version from tauri.conf.json for versionName
+  7. versionCode in Android is auto-incremented via `tauri.properties` file
 
 ## Project Structure
 - **Backend**: Node.js (server.js) spawns Python handlers (OCPP_handler.py) for each charge point
