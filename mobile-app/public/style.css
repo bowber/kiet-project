@@ -1290,3 +1290,216 @@ body {
 .stripe-form .back-btn {
     margin-top: -4px;
 }
+
+/* Dedicated Stripe Payment View */
+#stripe-payment-view {
+    background: linear-gradient(135deg, #f3f4ff 0%, #e8e9ff 100%);
+    min-height: 100vh;
+    padding: 0;
+}
+
+.stripe-payment-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.stripe-payment-header {
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 12px rgba(99, 91, 255, 0.3);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.back-nav-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.back-nav-btn:active {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(0.95);
+}
+
+.stripe-payment-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.stripe-payment-content {
+    flex: 1;
+    padding: 24px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Stripe Card Display in Dedicated View */
+.stripe-card-display {
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    border-radius: 16px;
+    padding: 24px;
+    color: white;
+    box-shadow: 0 8px 24px rgba(99, 91, 255, 0.3);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.stripe-card-display::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+}
+
+.stripe-card-chip {
+    width: 48px;
+    height: 36px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border-radius: 6px;
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.stripe-card-chip::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.stripe-card-number-display {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+    font-family: 'Courier New', monospace;
+}
+
+.stripe-card-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stripe-card-holder-display {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stripe-card-expiry-display {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+/* Stripe Payment Form in Dedicated View */
+.stripe-payment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stripe-payment-form .form-group {
+    margin-bottom: 0;
+}
+
+.stripe-payment-form .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.stripe-payment-form .form-group input {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: var(--surface-color);
+    transition: border-color 0.2s;
+}
+
+.stripe-payment-form .form-group input:focus {
+    outline: none;
+    border-color: #635bff;
+    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.1);
+}
+
+.stripe-payment-amount-display {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-top: 8px;
+}
+
+.stripe-payment-amount-display .amount-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.stripe-payment-amount-display .amount-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #635bff;
+}
+
+.stripe-payment-btn {
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    box-shadow: 0 4px 12px rgba(99, 91, 255, 0.3);
+    margin-top: 8px;
+}
+
+.stripe-payment-btn:active {
+    transform: scale(0.98);
+}
+
+.stripe-payment-btn:disabled {
+    background: #b3b0ff;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}

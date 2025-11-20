@@ -496,18 +496,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 vietqrSection: this.element.querySelector('.vietqr-section'),
                 vietqrImage: this.element.querySelector('.vietqr-image'),
                 amountValue: this.element.querySelector('.amount-value'),
-                // Stripe section elements
-                stripeSection: this.element.querySelector('.stripe-section'),
-                stripeBackBtn: this.element.querySelector('.stripe-back-btn'),
-                stripeCardNumber: this.element.querySelector('#stripe-card-number'),
-                stripeExpiry: this.element.querySelector('#stripe-expiry'),
-                stripeCvc: this.element.querySelector('#stripe-cvc'),
-                stripeName: this.element.querySelector('#stripe-name'),
-                stripeAmountValue: this.element.querySelector('.stripe-amount-display .amount-value'),
-                stripePayBtn: this.element.querySelector('.stripe-pay-btn'),
-                cardNumberDisplay: this.element.querySelector('.card-number-display'),
-                cardHolderDisplay: this.element.querySelector('.card-holder-display'),
-                cardExpiryDisplay: this.element.querySelector('.card-expiry-display'),
                 // Charging progress elements
                 chargingProgressSection: this.element.querySelector('.charging-progress-section'),
                 chargingPercentage: this.element.querySelector('.charging-percentage'),
@@ -675,43 +663,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             
-            // Stripe card input formatting
-            this.dom.stripeCardNumber.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\s/g, '');
-                let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
-                e.target.value = formattedValue;
-                this.dom.cardNumberDisplay.textContent = formattedValue || '•••• •••• •••• ••••';
-            });
-            
-            this.dom.stripeExpiry.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length >= 2) {
-                    value = value.substring(0, 2) + '/' + value.substring(2, 4);
-                }
-                e.target.value = value;
-                this.dom.cardExpiryDisplay.textContent = value || 'MM/YY';
-            });
-            
-            this.dom.stripeName.addEventListener('input', (e) => {
-                this.dom.cardHolderDisplay.textContent = e.target.value.toUpperCase() || 'CARD HOLDER';
-            });
-            
-            // Stripe pay button
-            this.dom.stripePayBtn.addEventListener('click', () => {
-                this.processStripePayment();
-            });
-            
             // Back button handlers
             this.dom.paymentMethodBackBtn.addEventListener('click', () => {
                 this.dom.paymentMethodSection.style.display = 'none';
                 // Reset payment method selection when going back to charging target
                 this.selectedPaymentMethod = null;
                 this.showPaymentSection();
-            });
-            
-            this.dom.stripeBackBtn.addEventListener('click', () => {
-                this.dom.stripeSection.style.display = 'none';
-                this.dom.paymentMethodSection.style.display = 'block';
             });
             
             // Stop charging button
@@ -813,24 +770,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide payment method selector
             this.dom.paymentMethodSection.style.display = 'none';
             
-            // Update amount display
-            this.dom.stripeAmountValue.textContent = `${amount.toLocaleString()} VND`;
-            
-            // Reset form
-            this.dom.stripeCardNumber.value = '';
-            this.dom.stripeExpiry.value = '';
-            this.dom.stripeCvc.value = '';
-            this.dom.stripeName.value = '';
-            this.dom.cardNumberDisplay.textContent = '•••• •••• •••• ••••';
-            this.dom.cardHolderDisplay.textContent = 'CARD HOLDER';
-            this.dom.cardExpiryDisplay.textContent = 'MM/YY';
-            
-            // Keep buttons locked during payment
-            this.dom.plugStatusBtn.disabled = true;
-            this.dom.evStatusBtn.disabled = true;
-            
-            // Show Stripe section
-            this.dom.stripeSection.style.display = 'block';
+            // Navigate to dedicated Stripe screen
+            if (typeof window.navigateToStripePayment === 'function') {
+                window.navigateToStripePayment(amount);
+            }
         }
 
         processStripePayment() {
@@ -1130,5 +1073,151 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.energyValue.textContent = '0 Wh';
             this.dom.powerValue.textContent = '0 W';
         }
+    }
+
+    // --- STRIPE DEDICATED SCREEN HANDLERS ---
+    const stripePaymentView = document.getElementById('stripe-payment-view');
+    const stripeBackNavBtn = document.getElementById('stripe-back-nav-btn');
+    const stripeCardNumberInput = document.getElementById('stripe-card-number-input');
+    const stripeExpiryInput = document.getElementById('stripe-expiry-input');
+    const stripeCvcInput = document.getElementById('stripe-cvc-input');
+    const stripeNameInput = document.getElementById('stripe-name-input');
+    const stripePaymentAmountValue = document.getElementById('stripe-payment-amount-value');
+    const stripePaymentBtn = document.getElementById('stripe-payment-btn');
+    const stripeCardNumberDisplay = document.querySelector('.stripe-card-number-display');
+    const stripeCardHolderDisplay = document.querySelector('.stripe-card-holder-display');
+    const stripeCardExpiryDisplay = document.querySelector('.stripe-card-expiry-display');
+
+    // Navigate to stripe view from payment method selector
+    window.navigateToStripePayment = function(amount) {
+        // Update amount display
+        if (stripePaymentAmountValue) {
+            stripePaymentAmountValue.textContent = `${amount.toLocaleString()} VND`;
+        }
+        
+        // Reset form
+        if (stripeCardNumberInput) stripeCardNumberInput.value = '';
+        if (stripeExpiryInput) stripeExpiryInput.value = '';
+        if (stripeCvcInput) stripeCvcInput.value = '';
+        if (stripeNameInput) stripeNameInput.value = '';
+        if (stripeCardNumberDisplay) stripeCardNumberDisplay.textContent = '•••• •••• •••• ••••';
+        if (stripeCardHolderDisplay) stripeCardHolderDisplay.textContent = 'CARD HOLDER';
+        if (stripeCardExpiryDisplay) stripeCardExpiryDisplay.textContent = 'MM/YY';
+        
+        // Navigate to Stripe view
+        views.forEach(view => view.classList.remove('active'));
+        if (stripePaymentView) {
+            stripePaymentView.classList.add('active');
+            // Scroll to top when entering Stripe payment screen
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    // Back button from Stripe view
+    if (stripeBackNavBtn) {
+        stripeBackNavBtn.addEventListener('click', () => {
+            // Navigate back to status view
+            views.forEach(view => view.classList.remove('active'));
+            document.getElementById('status-view').classList.add('active');
+            navItems.forEach(i => i.classList.remove('active'));
+            document.querySelector('[data-view="status-view"]').classList.add('active');
+            
+            // Re-show payment method selector if chargePoint exists
+            if (chargePoint && chargePoint.dom && chargePoint.dom.paymentMethodSection) {
+                chargePoint.dom.paymentMethodSection.style.display = 'block';
+            }
+        });
+    }
+
+    // Card input formatting for dedicated Stripe screen
+    if (stripeCardNumberInput) {
+        stripeCardNumberInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\s/g, '');
+            let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+            e.target.value = formattedValue;
+            if (stripeCardNumberDisplay) {
+                stripeCardNumberDisplay.textContent = formattedValue || '•••• •••• •••• ••••';
+            }
+        });
+    }
+
+    if (stripeExpiryInput) {
+        stripeExpiryInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+            if (stripeCardExpiryDisplay) {
+                stripeCardExpiryDisplay.textContent = value || 'MM/YY';
+            }
+        });
+    }
+
+    if (stripeNameInput) {
+        stripeNameInput.addEventListener('input', (e) => {
+            if (stripeCardHolderDisplay) {
+                stripeCardHolderDisplay.textContent = e.target.value.toUpperCase() || 'CARD HOLDER';
+            }
+        });
+    }
+
+    // Pay button handler for dedicated Stripe screen
+    if (stripePaymentBtn) {
+        stripePaymentBtn.addEventListener('click', () => {
+            // Validate inputs
+            const cardNumber = stripeCardNumberInput ? stripeCardNumberInput.value.replace(/\s/g, '') : '';
+            const expiry = stripeExpiryInput ? stripeExpiryInput.value : '';
+            const cvc = stripeCvcInput ? stripeCvcInput.value : '';
+            const name = stripeNameInput ? stripeNameInput.value : '';
+            
+            if (!cardNumber || cardNumber.length < 13) {
+                alert('Please enter a valid card number');
+                return;
+            }
+            
+            if (!expiry || expiry.length !== 5) {
+                alert('Please enter expiry date (MM/YY)');
+                return;
+            }
+            
+            if (!cvc || cvc.length < 3) {
+                alert('Please enter CVC');
+                return;
+            }
+            
+            if (!name) {
+                alert('Please enter cardholder name');
+                return;
+            }
+            
+            // Disable button and show processing
+            stripePaymentBtn.disabled = true;
+            stripePaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            
+            // Simulate payment processing (2 seconds)
+            setTimeout(() => {
+                // Re-enable button
+                stripePaymentBtn.disabled = false;
+                stripePaymentBtn.innerHTML = '<i class="fas fa-lock"></i> Pay Now';
+                
+                // Navigate back to status view
+                views.forEach(view => view.classList.remove('active'));
+                document.getElementById('status-view').classList.add('active');
+                navItems.forEach(i => i.classList.remove('active'));
+                document.querySelector('[data-view="status-view"]').classList.add('active');
+                
+                // Show success toast
+                if (chargePoint) {
+                    chargePoint.showToast('Payment successful!');
+                    
+                    // Start charging after toast
+                    setTimeout(() => {
+                        chargePoint.startChargingProcess('MOBILE_APP_USER');
+                        chargePoint.showChargingProgress();
+                    }, 500);
+                }
+            }, 2000);
+        });
     }
 });
