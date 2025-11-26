@@ -275,8 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="metrics-grid">
-                    <div class="metric-item"><span class="metric-label">Energy</span><span class="metric-value energy-value">0 Wh</span></div>
-                    <div class="metric-item"><span class="metric-label">Power</span><span class="metric-value power-value">0 W</span></div>
+                    <div class="metric-item"><span class="metric-label">Energy</span><span class="metric-value energy-value">0.00 kWh</span></div>
+                    <div class="metric-item"><span class="metric-label">Power</span><span class="metric-value power-value">0.0 kW</span></div>
                 </div>
                 
                 <!-- Payment Section -->
@@ -1060,14 +1060,23 @@ document.addEventListener('DOMContentLoaded', () => {
             this.meterValue = 0;
             if (this.meterValueIntervalId) clearInterval(this.meterValueIntervalId);
             this.meterValueIntervalId = setInterval(() => {
-                this.meterValue += 100;
-                const power = Math.floor(Math.random() * (7000 - 6000 + 1) + 6000);
-                this.dom.energyValue.textContent = `${this.meterValue} Wh`;
-                this.dom.powerValue.textContent = `${power} W`;
+                // Calculate power and energy based on selected charging speed
+                const powerKw = this.CHARGING_POWER; // 7.2, 14.4, or 21.6 kW
+                const powerWatts = powerKw * 1000;
+                const intervalSeconds = 5;
+                // Energy (Wh) = Power (W) × Time (h) = Power (W) × seconds / 3600
+                const energyIncrement = (powerWatts * intervalSeconds) / 3600;
+                
+                this.meterValue += energyIncrement;
+                // Add small noise to power display (±0.1kW)
+                const displayPowerKw = powerKw + (Math.random() - 0.5) * 0.2;
+                
+                this.dom.energyValue.textContent = `${(this.meterValue / 1000).toFixed(2)} kWh`;
+                this.dom.powerValue.textContent = `${displayPowerKw.toFixed(1)} kW`;
                 this.sendRequest("MeterValues", {
                     connectorId: 1,
                     transactionId: txId,
-                    meterValue: [{ timestamp: new Date().toISOString(), sampledValue: [{ value: this.meterValue.toString(), unit: "Wh" }] }]
+                    meterValue: [{ timestamp: new Date().toISOString(), sampledValue: [{ value: this.meterValue.toFixed(1), unit: "Wh" }] }]
                 });
                 
                 // Update charging progress
@@ -1078,8 +1087,8 @@ document.addEventListener('DOMContentLoaded', () => {
         stopSendingMeterValues() {
             clearInterval(this.meterValueIntervalId);
             this.meterValue = 0;
-            this.dom.energyValue.textContent = '0 Wh';
-            this.dom.powerValue.textContent = '0 W';
+            this.dom.energyValue.textContent = '0.00 kWh';
+            this.dom.powerValue.textContent = '0.0 kW';
         }
     }
 
