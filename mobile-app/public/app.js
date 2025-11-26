@@ -220,13 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
             this.isEvReady = false;
             
             // Charging parameters
-            this.BATTERY_CAPACITY = 5; // kWh
+            this.BATTERY_CAPACITY = 42; // kWh
             
             // Charge speed options
             this.chargeSpeedOptions = {
-                normal: { power: 6, price: 10000, label: 'Normal', icon: 'fa-battery-half' },
-                fast: { power: 12, price: 12000, label: 'Fast', icon: 'fa-bolt' },
-                lightning: { power: 18, price: 20000, label: 'Lightning', icon: 'fa-bolt-lightning' }
+                normal: { power: 7.2, price: 3500, label: 'Normal', icon: 'fa-battery-half' },
+                fast: { power: 14.4, price: 3600, label: 'Fast', icon: 'fa-bolt' },
+                lightning: { power: 21.6, price: 3800, label: 'Lightning', icon: 'fa-bolt-lightning' }
             };
             
             this.selectedChargeSpeed = 'normal'; // default speed
@@ -311,20 +311,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="charge-speed-btn active" data-speed="normal">
                                 <i class="fas fa-battery-half"></i>
                                 <span class="speed-name">Normal</span>
-                                <span class="speed-details">6 kW</span>
-                                <span class="speed-price">10,000₫/kWh</span>
+                                <span class="speed-details">7.2 kW</span>
+                                <span class="speed-price">3,500₫/kWh</span>
                             </button>
                             <button class="charge-speed-btn" data-speed="fast">
                                 <i class="fas fa-bolt"></i>
                                 <span class="speed-name">Fast</span>
-                                <span class="speed-details">12 kW</span>
-                                <span class="speed-price">12,000₫/kWh</span>
+                                <span class="speed-details">14.4 kW</span>
+                                <span class="speed-price">3,600₫/kWh</span>
                             </button>
                             <button class="charge-speed-btn" data-speed="lightning">
                                 <i class="fas fa-bolt-lightning"></i>
                                 <span class="speed-name">Lightning</span>
-                                <span class="speed-details">18 kW</span>
-                                <span class="speed-price">20,000₫/kWh</span>
+                                <span class="speed-details">21.6 kW</span>
+                                <span class="speed-price">3,800₫/kWh</span>
                             </button>
                         </div>
                     </div>
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="charging-time-row">
                             <span class="time-label">Time Remaining:</span>
-                            <span class="time-remaining">--:--</span>
+                            <span class="time-remaining">00:00:00</span>
                         </div>
                     </div>
                 </div>
@@ -864,10 +864,11 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.chargingPercentage.innerHTML = `${Math.floor(currentPercentage)}% → <span class="charging-target">${this.targetPowerLevel}%</span>`;
             this.dom.progressBarFill.style.width = `${currentPercentage}%`;
             
-            // Format remaining time
-            const minutes = Math.floor(remaining / 60);
+            // Format remaining time as HH:mm:ss
+            const hours = Math.floor(remaining / 3600);
+            const minutes = Math.floor((remaining % 3600) / 60);
             const seconds = Math.floor(remaining % 60);
-            this.dom.timeRemaining.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            this.dom.timeRemaining.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             
             // Check if charging complete
             if (currentPercentage >= this.targetPowerLevel) {
@@ -965,6 +966,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         startChargingProcess(idTag) {
+            // Send charging speed to server via DataTransfer before starting
+            this.sendRequest("DataTransfer", {
+                vendorId: "ChargingSpeed",
+                messageId: "SpeedSelection",
+                data: this.selectedChargeSpeed
+            });
+            
             this.sendRequest("Authorize", { idTag });
             this.sendRequest("StartTransaction", { 
                 connectorId: 1, 

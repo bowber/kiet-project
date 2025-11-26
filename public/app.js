@@ -6,6 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalLogBody = document.getElementById('global-log-body');
     const MAX_LOG_ROWS = 100;
 
+    // Mapping từ tốc độ sạc sang số pha (Load) hoạt động
+    // Normal = Load 1, Fast = Load 1+2, Lightning = Load 1+2+3
+    const SPEED_TO_LOADS = {
+        'normal': [true, false, false],     // Load 1 only
+        'fast': [true, true, false],        // Load 1 + 2
+        'lightning': [true, true, true]     // Load 1 + 2 + 3
+    };
+
     // WebSocket kết nối tới Server
     let ws; 
     
@@ -188,8 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
     class ChargePointCard {
         constructor(id, initialState) {
             this.id = id;
-            this.state = { energy: 0, status: 'Unavailable', transactionId: null, ...initialState };
+            this.state = { energy: 0, status: 'Unavailable', transactionId: null, chargeSpeed: null, ...initialState };
             this.activePhases = [true, false, false]; 
+            this.autoLoadMode = false; // Chế độ tự động điều khiển Load từ mobile app
             this.simulationInterval = null;
             this.lastSimTime = 0;
             this.createElement();
@@ -222,7 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <div class="load-section">
-                        <h4 style="font-size:0.75em; color:#6b778c; text-transform:uppercase; margin:0 0 8px 0;">Active Loads (Phases)</h4>
+                        <h4 style="font-size:0.75em; color:#6b778c; text-transform:uppercase; margin:0 0 8px 0;">
+                            Active Loads (Phases)
+                            <span class="auto-mode-badge" style="display:none; background:#0052cc; color:#fff; padding:2px 6px; border-radius:3px; font-size:0.85em; margin-left:8px;">AUTO</span>
+                        </h4>
                         <div class="load-selector">
                             <div class="load-rect active" data-index="0">Load 1</div>
                             <div class="load-rect" data-index="1">Load 2</div>
@@ -280,6 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 energyInfo: this.element.querySelector('.energy-info'),
                 heartbeatIcon: this.element.querySelector('.heartbeat-icon'),
                 loadRects: this.element.querySelectorAll('.load-rect'),
+                autoModeBadge: this.element.querySelector('.auto-mode-badge'),
                 vVal: this.element.querySelector('.v-val'),
                 vabVal: this.element.querySelector('.vab-val'),
                 vbcVal: this.element.querySelector('.vbc-val'),
@@ -320,6 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.dom.loadRects.forEach(rect => {
                 rect.addEventListener('click', () => {
+                    // Không cho phép thay đổi thủ công khi đang ở chế độ AUTO
+                    if (this.autoLoadMode) {
+                        console.log(`[Dashboard] Load selection blocked - Auto mode active for ${this.id}`);
+                        return;
+                    }
                     const index = parseInt(rect.dataset.index);
                     this.activePhases[index] = !this.activePhases[index];
                     if (this.activePhases[index]) {
@@ -371,6 +389,56 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateConnectionStatus(true);
             this.updateStatus(this.state.status);
             this.updateTransaction(this.state.transactionId);
+            
+            // Nếu có chargeSpeed trong state, cập nhật auto load
+            if (this.state.chargeSpeed) {
+                this.setActivePhasesBySpeed(this.state.chargeSpeed);
+            }
+        }
+
+        // Thiết lập các pha (Load) hoạt động dựa trên tốc độ sạc từ mobile app
+        setActivePhasesBySpeed(speed) {
+            if (speed && SPEED_TO_LOADS[speed]) {
+                this.autoLoadMode = true;
+                this.activePhases = [...SPEED_TO_LOADS[speed]];
+                
+                // Cập nhật UI
+                this.dom.loadRects.forEach((rect, index) => {
+                    if (this.activePhases[index]) {
+                        rect.classList.add('active');
+                    } else {
+                        rect.classList.remove('active');
+                    }
+                    // Thêm style cho auto mode (giảm opacity để chỉ ra không thể click)
+                    rect.style.cursor = 'not-allowed';
+                    rect.style.opacity = '0.8';
+                });
+                
+                // Hiển thị badge AUTO
+                if (this.dom.autoModeBadge) {
+                    this.dom.autoModeBadge.style.display = 'inline';
+                    this.dom.autoModeBadge.textContent = `AUTO (${speed.charAt(0).toUpperCase() + speed.slice(1)})`;
+                }
+                
+                console.log(`[Dashboard] Auto-set loads for ${this.id}: Speed=${speed}, Phases=${this.activePhases}`);
+                this.calculateElectricalParameters();
+            } else {
+                // Reset về chế độ manual khi speed = null
+                this.autoLoadMode = false;
+                
+                // Reset UI
+                this.dom.loadRects.forEach(rect => {
+                    rect.style.cursor = 'pointer';
+                    rect.style.opacity = '1';
+                });
+                
+                // Ẩn badge AUTO
+                if (this.dom.autoModeBadge) {
+                    this.dom.autoModeBadge.style.display = 'none';
+                }
+                
+                console.log(`[Dashboard] Reset to manual mode for ${this.id}`);
+            }
         }
 
         updateConnectionStatus(isConnected) {
@@ -594,6 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (type === 'transactionStop') card.updateTransaction(null);
                 if (type === 'meterValue') card.updateEnergy(data.value);
                 if (type === 'heartbeat') card.triggerHeartbeat();
+                if (type === 'speedUpdate') card.setActivePhasesBySpeed(data.speed);
 
             } catch (e) {
                 console.error("Error processing WebSocket message:", e);

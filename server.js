@@ -344,7 +344,7 @@ wss.on('connection', (ws, req) => {
         console.log(`[Master] Spawning Python handler for '${chargePointId}'...`);
         const pythonHandler = spawn('python3', ['OCPP_handler.py']);
 
-        const chargePointState = { id: chargePointId, vendor: '', model: '', status: 'Connecting', transactionId: null, energy: 0 };
+        const chargePointState = { id: chargePointId, vendor: '', model: '', status: 'Connecting', transactionId: null, energy: 0, chargeSpeed: null };
         
         opcUaCreationLocks.add(chargePointId);
         const opcuaNodes = createOpcUaNodesForChargePoint(chargePointId);
@@ -408,17 +408,26 @@ wss.on('connection', (ws, req) => {
 
                     chargePointState.transactionId = null;
                     chargePointState.energy = 0; // Reset energy khi dừng
+                    chargePointState.chargeSpeed = null; // Reset charge speed khi dừng
                     broadcastToDashboards({ type: 'transactionStop', id: chargePointId, transactionId: null });
                     broadcastToDashboards({ type: 'meterValue', id: chargePointId, value: 0 }); // Gửi cập nhật energy về 0
+                    broadcastToDashboards({ type: 'speedUpdate', id: chargePointId, speed: null }); // Reset speed trên dashboard
                     updateOpcuaTag(chargePointId, "TransactionID", 0); // Đặt về 0 hoặc null
                     updateOpcuaTag(chargePointId, "Energy_Wh", 0);
-                } 
+                }
                 else if (action === 'MeterValues') {
                     const latestMeterValue = payload.meterValue[payload.meterValue.length - 1];
                     const energyValue = latestMeterValue.sampledValue[0].value;
                     chargePointState.energy = energyValue;
                     broadcastToDashboards({ type: 'meterValue', id: chargePointId, value: energyValue });
                     updateOpcuaTag(chargePointId, "Energy_Wh", parseFloat(energyValue) || 0);
+                }
+                // Handle DataTransfer for charging speed from mobile app
+                else if (action === 'DataTransfer' && payload.vendorId === 'ChargingSpeed') {
+                    const speed = payload.data; // 'normal', 'fast', or 'lightning'
+                    console.log(`[Master] Nhận tốc độ sạc từ ${chargePointId}: ${speed}`);
+                    chargePointState.chargeSpeed = speed;
+                    broadcastToDashboards({ type: 'speedUpdate', id: chargePointId, speed: speed });
                 }
 
                 broadcastToDashboards({ type: 'log', direction: 'request', chargePointId, message: parsedMessage });
