@@ -36,3 +36,6 @@ AGENTS.md
 # Logs
 logs/
 *.log
+
+# Mobile app (Tauri/Rust - not needed for server)
+mobile-app/
