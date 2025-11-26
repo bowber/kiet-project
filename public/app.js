@@ -1,8 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // =========================================================================
+    // KHAI BÁO BIẾN TOÀN CỤC & CẤU HÌNH
+    // =========================================================================
     const chargersContainer = document.getElementById('chargers-container');
-    const chargePointCards = new Map();
     const globalLogBody = document.getElementById('global-log-body');
     const MAX_LOG_ROWS = 100;
+
+    // WebSocket kết nối tới Server
+    let ws; 
+    
+    // Map lưu trữ các đối tượng ChargePointCard để quản lý độc lập
+    const chargePointCards = new Map();
+    
+    // Cache dữ liệu SQL để lọc nhanh
+    let currentSqlData = [];
 
     // Kiểm tra xem các phần tử cần thiết có tồn tại không
     if (!chargersContainer) {
@@ -14,21 +25,123 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    let ws; 
+    // =========================================================================
+    // PHẦN 1: QUẢN LÝ GIAO DIỆN (TABS, SIDEBAR, SEARCH)
+    // =========================================================================
+
+    window.openTab = function(viewId, elem) {
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.style.display = 'none';
+        });
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+    
+        const targetView = document.getElementById(viewId);
+        if (targetView) {
+            targetView.style.display = 'block';
+        }
+        
+        if (elem) {
+            elem.classList.add('active');
+        } else {
+            const link = document.querySelector(`.nav-link[onclick*="${viewId}"]`);
+            if (link) link.classList.add('active');
+        }
+
+        if(viewId === 'database-view') {
+            loadSqlData(); 
+        }
+    }
+    
+    window.loadSqlData = async function() {
+        const tbody = document.getElementById('sql-table-body');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading data...</td></tr>';
+    
+        try {
+            const response = await fetch('/api/history');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            currentSqlData = await response.json();
+            filterAndRenderSqlData();
+    
+        } catch (err) {
+            console.error('Error fetching SQL data:', err);
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#de350b;">Error loading data. Check Server/Database connection.</td></tr>';
+        }
+    }
+
+    window.filterAndRenderSqlData = function() {
+        const tbody = document.getElementById('sql-table-body');
+        const txSearch = document.getElementById('search-tx-id')?.value.toLowerCase() || '';
+        const cpSearch = document.getElementById('search-cp-id')?.value.toLowerCase() || '';
+        const dateSearch = document.getElementById('search-date')?.value || ''; 
+
+        tbody.innerHTML = '';
+
+        const filteredData = currentSqlData.filter(row => {
+            const matchTx = row.id.toString().includes(txSearch);
+            const matchCp = row.charge_point_id.toLowerCase().includes(cpSearch);
+            
+            let matchDate = true;
+            if (dateSearch) {
+                const rowDate = new Date(row.start_time).toISOString().split('T')[0];
+                matchDate = rowDate === dateSearch;
+            }
+
+            return matchTx && matchCp && matchDate;
+        });
+
+        if (filteredData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px; color: #6b778c;">No matching records found.</td></tr>';
+            return;
+        }
+
+        filteredData.forEach(row => {
+            const tr = document.createElement('tr');
+            const startTime = new Date(row.start_time).toLocaleString();
+            const stopTime = row.stop_time ? new Date(row.stop_time).toLocaleString() : '<span style="color:#0052cc; font-weight:600">Charging...</span>';
+            const energy = row.total_energy !== null ? row.total_energy : (row.meter_stop - row.meter_start);
+
+            tr.innerHTML = `
+                <td>#${row.id}</td>
+                <td><strong>${row.charge_point_id}</strong></td>
+                <td><code style="background:#f4f5f7; padding:2px 5px; border-radius:3px; color:#0052cc">${row.id_tag || 'N/A'}</code></td>
+                <td>${startTime}</td>
+                <td>${stopTime}</td>
+                <td style="color: #00875a; font-weight:bold;">${energy || 0} Wh</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    if(document.getElementById('search-tx-id')) {
+        document.getElementById('search-tx-id').addEventListener('input', filterAndRenderSqlData);
+        document.getElementById('search-cp-id').addEventListener('input', filterAndRenderSqlData);
+        document.getElementById('search-date').addEventListener('change', filterAndRenderSqlData);
+    }
+
+    // =========================================================================
+    // PHẦN 2: LOGIC GIAO TIẾP WEBSOCKET & OCPP
+    // =========================================================================
 
     function sendRemoteCommand(command, chargePointId, params = {}) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             const message = { type: 'remoteCommand', command, chargePointId, params };
             ws.send(JSON.stringify(message));
-            console.log('Sent command:', message);
+            console.log(`[WEBSOCKET] Sent command '${command}' to '${chargePointId}'`, params);
         } else {
-            alert('Không thể gửi lệnh. Mất kết nối tới server.');
+            alert('Mất kết nối tới Server. Vui lòng tải lại trang.');
         }
     }
 
     function parseOcppMessage(logData) {
         const { direction, message, action: originalAction, chargePointId } = logData;
-        const [msgType, msgId, actionOrPayload, payload] = message;
+        if (!Array.isArray(message)) return { action: 'Unknown', payload: {} };
+        const [, , actionOrPayload, payload] = message;
 
         if (direction === 'request' && chargePointId === 'CSMS_Dashboard') {
              return { action: actionOrPayload, payload: payload };
@@ -40,18 +153,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addLogRow(data) {
+        if (!globalLogBody) return;
         const { action, payload } = parseOcppMessage(data);
         const row = document.createElement('tr');
         const isRequest = data.direction === 'request';
-        const directionClass = isRequest ? 'request' : 'response';
-        const directionArrow = isRequest ? '➡️' : '⬅️';
+        const directionIcon = isRequest 
+            ? '<i class="fa-solid fa-arrow-right-long" style="color:#0052cc"></i>' 
+            : '<i class="fa-solid fa-arrow-left-long" style="color:#00875a"></i>';
         const directionText = data.chargePointId === 'CSMS_Dashboard' ? 'CSMS' : data.chargePointId;
 
         row.innerHTML = `
-            <td>${new Date().toLocaleTimeString()}</td>
-            <td class="direction-${directionClass}">${directionArrow} ${isRequest ? 'To' : 'From'}</td>
-            <td>${directionText}</td>
-            <td>${action}</td>
+            <td style="color:#6b778c; font-size:0.85em;">${new Date().toLocaleTimeString()}</td>
+            <td>${directionIcon} <small>${isRequest ? 'To' : 'From'}</small></td>
+            <td><strong>${directionText}</strong></td>
+            <td><span style="background:#ebecf0; padding:2px 6px; border-radius:3px; font-weight:500;">${action}</span></td>
             <td class="payload-cell"><pre>${JSON.stringify(payload, null, 2)}</pre></td>
         `;
         
@@ -66,21 +181,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // =========================================================================
+    // PHẦN 3: CLASS THẺ TRẠM SẠC (LOGIC NĂNG LƯỢNG VÀ THÔNG SỐ ĐIỆN)
+    // =========================================================================
+    
     class ChargePointCard {
         constructor(id, initialState) {
             this.id = id;
-            this.state = { energy: 0, ...initialState };
-            this.render();
-            this.updateAll(initialState);
+            this.state = { energy: 0, status: 'Unavailable', transactionId: null, ...initialState };
+            this.activePhases = [true, false, false]; 
+            this.simulationInterval = null;
+            this.lastSimTime = 0;
+            this.createElement();
+            this.cacheDOM();
+            this.addEventListeners();
+            this.updateAll(this.state);
         }
 
-        render() {
+        createElement() {
             this.element = document.createElement('div');
             this.element.className = 'charger-card';
             this.element.id = `charger-${this.id}`;
+            this.element.dataset.cpId = this.id;
+
             this.element.innerHTML = `
                 <div class="card-header">
-                    <h3><i class="fa-solid fa-charging-station"></i> ${this.id}</h3>
+                    <h3><i class="fa-solid fa-charging-station" style="color:#0052cc"></i> ${this.id}</h3>
                     <div class="header-icons">
                         <i class="fa-solid fa-heart-pulse heartbeat-icon"></i>
                         <div class="status-tag status-disconnected">
@@ -90,10 +216,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="card-body">
-                    <p><strong>Vendor:</strong> <span class="vendor-info">N/A</span></p>
-                    <p><strong>Model:</strong> <span class="model-info">N/A</span></p>
-                    <p><strong>Transaction:</strong> <span class="transaction-info">None</span></p>
-                    <p><strong>Energy:</strong> <span class="energy-info">0 kWh</span></p>
+                    <div class="info-row">
+                        <span>Vendor: <strong class="vendor-info">N/A</strong></span>
+                        <span>Model: <strong class="model-info">N/A</strong></span>
+                    </div>
+                    
+                    <div class="load-section">
+                        <h4 style="font-size:0.75em; color:#6b778c; text-transform:uppercase; margin:0 0 8px 0;">Active Loads (Phases)</h4>
+                        <div class="load-selector">
+                            <div class="load-rect active" data-index="0">Load 1</div>
+                            <div class="load-rect" data-index="1">Load 2</div>
+                            <div class="load-rect" data-index="2">Load 3</div>
+                        </div>
+                    </div>
+
+                    <div class="electrical-params">
+                        <div class="param-item"><span class="param-label">V (Avg Phase)</span><span class="param-value v-val">0 V</span></div>
+                        <div class="param-item"><span class="param-label">Vab</span><span class="param-value vab-val">0 V</span></div>
+                        <div class="param-item"><span class="param-label">Vbc</span><span class="param-value vbc-val">0 V</span></div>
+                        <div class="param-item"><span class="param-label">Vca</span><span class="param-value vca-val">0 V</span></div>
+                        <div class="param-item"><span class="param-label">I (Sum)</span><span class="param-value i-val">0 A</span></div>
+                        <div class="param-item"><span class="param-label">Ia</span><span class="param-value ia-val">0 A</span></div>
+                        <div class="param-item"><span class="param-label">Ib</span><span class="param-value ib-val">0 A</span></div>
+                        <div class="param-item"><span class="param-label">Ic</span><span class="param-value ic-val">0 A</span></div>
+                        <div class="param-item"><span class="param-label">P (Total)</span><span class="param-value p-val">0 kW</span></div>
+                        <div class="param-item"><span class="param-label">Q (Total)</span><span class="param-value q-val">0 kVAR</span></div>
+                        <div class="param-item"><span class="param-label">PF</span><span class="param-value pf-val">0.00</span></div>
+                        <div class="param-item"></div> 
+                    </div>
+
+                    <div class="energy-section" style="margin-top:15px; padding-top:10px; border-top:1px dashed #dfe1e6; display:flex; justify-content:space-between; align-items:center">
+                        <span class="energy-label" style="font-size:0.9em; color:#6b778c">Energy (E)</span>
+                        <div class="energy-info-container" style="text-align:right">
+                             <div class="energy-value energy-info" style="font-size:1.3em; font-weight:700; color:#00875a">0.00 kWh</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-actions">
                      <button class="action-btn main-action-btn" disabled>Start Charging</button>
@@ -110,38 +267,71 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             chargersContainer.appendChild(this.element);
+        }
 
+        cacheDOM() {
             this.dom = {
                 statusTag: this.element.querySelector('.status-tag'),
                 statusText: this.element.querySelector('.status-text'),
+                statusDot: this.element.querySelector('.status-dot'),
                 vendorInfo: this.element.querySelector('.vendor-info'),
                 modelInfo: this.element.querySelector('.model-info'),
-                transactionInfo: this.element.querySelector('.transaction-info'),
                 actionBtn: this.element.querySelector('.main-action-btn'),
                 energyInfo: this.element.querySelector('.energy-info'),
                 heartbeatIcon: this.element.querySelector('.heartbeat-icon'),
+                loadRects: this.element.querySelectorAll('.load-rect'),
+                vVal: this.element.querySelector('.v-val'),
+                vabVal: this.element.querySelector('.vab-val'),
+                vbcVal: this.element.querySelector('.vbc-val'),
+                vcaVal: this.element.querySelector('.vca-val'),
+                iVal: this.element.querySelector('.i-val'),
+                iaVal: this.element.querySelector('.ia-val'),
+                ibVal: this.element.querySelector('.ib-val'),
+                icVal: this.element.querySelector('.ic-val'),
+                pVal: this.element.querySelector('.p-val'),
+                qVal: this.element.querySelector('.q-val'),
+                pfVal: this.element.querySelector('.pf-val'),
                 advancedHeader: this.element.querySelector('.advanced-header'),
                 getConfigBtn: this.element.querySelector('.get-config-btn'),
                 setConfigBtn: this.element.querySelector('.set-config-btn'),
                 clearCacheBtn: this.element.querySelector('.clear-cache-btn'),
                 dataTransferBtn: this.element.querySelector('.data-transfer-btn'),
             };
-
-            this.addEventListeners();
         }
         
         addEventListeners() {
-            this.dom.actionBtn.addEventListener('click', () => {
+            this.dom.actionBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 if (this.state.transactionId) {
-                    sendRemoteCommand('RemoteStopTransaction', this.id, { transactionId: this.state.transactionId });
+                    if (confirm(`Dừng sạc trạm ${this.id}?`)) {
+                        sendRemoteCommand('RemoteStopTransaction', this.id, { transactionId: this.state.transactionId });
+                        this.dom.actionBtn.textContent = 'Stopping...';
+                        this.dom.actionBtn.disabled = true;
+                    }
                 } else {
-                    const idTag = prompt("Enter ID Tag to start transaction:", "048E0B84");
+                    const idTag = prompt(`Nhập thẻ ID để sạc trạm ${this.id}:`, "048E0B84");
                     if (idTag) {
                         sendRemoteCommand('RemoteStartTransaction', this.id, { idTag });
+                        this.dom.actionBtn.textContent = 'Requesting...';
+                        this.dom.actionBtn.disabled = true;
                     }
                 }
             });
 
+            this.dom.loadRects.forEach(rect => {
+                rect.addEventListener('click', () => {
+                    const index = parseInt(rect.dataset.index);
+                    this.activePhases[index] = !this.activePhases[index];
+                    if (this.activePhases[index]) {
+                        rect.classList.add('active');
+                    } else {
+                        rect.classList.remove('active');
+                    }
+                    this.calculateElectricalParameters();
+                });
+            });
+
+            // Advanced Controls
             this.dom.advancedHeader.addEventListener('click', () => {
                 this.element.querySelector('.advanced-controls').classList.toggle('open');
             });
@@ -174,20 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        updateActionButton() {
-            const btn = this.dom.actionBtn;
-            
-            if (this.state.transactionId) {
-                btn.textContent = 'Stop Charging';
-                btn.className = 'action-btn main-action-btn stop-btn';
-                btn.disabled = this.state.status !== 'Charging';
-            } else {
-                btn.textContent = 'Start Charging';
-                btn.className = 'action-btn main-action-btn start-btn';
-                btn.disabled = this.state.status !== 'Preparing';
-            }
-        }
-
         updateAll(newState) {
             this.state = { ...this.state, ...newState };
             this.dom.vendorInfo.textContent = this.state.vendor || 'N/A';
@@ -206,37 +382,45 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.statusTag.className = 'status-tag';
             this.dom.statusText.textContent = status;
 
-            switch (status) {
-                case 'Available':
-                case 'Preparing':
-                case 'Unavailable':
-                    this.dom.statusTag.classList.add('status-available');
-                    break;
-                case 'Charging':
-                case 'SuspendedEVSE':
-                case 'SuspendedEV':
-                    this.dom.statusTag.classList.add('status-charging');
-                    break;
-                case 'Finishing':
-                    this.dom.statusTag.classList.add('status-finishing');
-                    break;
-                case 'Faulted':
-                    this.dom.statusTag.classList.add('status-faulted');
-                    break;
-                default:
-                    this.dom.statusTag.classList.add('status-disconnected');
-                    break;
+            const s = status.toLowerCase();
+            if (s === 'available' || s === 'preparing') {
+                this.dom.statusTag.classList.add('status-available');
+                this.stopSimulation(); 
+            } else if (['charging', 'suspendedevse', 'suspendedev', 'finishing'].includes(s)) {
+                this.dom.statusTag.classList.add('status-charging');
+                this.startSimulation();
+            } else if (s === 'faulted') {
+                this.dom.statusTag.classList.add('status-faulted');
+                this.stopSimulation();
+            } else {
+                this.dom.statusTag.classList.add('status-disconnected');
+                this.stopSimulation();
             }
+
             this.updateActionButton();
+            this.calculateElectricalParameters();
         }
 
         updateTransaction(transactionId) {
             this.state.transactionId = transactionId;
-            this.dom.transactionInfo.textContent = transactionId || 'None';
-            if (transactionId && !this.state.energy) {
-                 this.updateEnergy(0);
+            if (transactionId && this.state.energy === undefined) {
+                 this.state.energy = 0;
             }
             this.updateActionButton();
+        }
+        
+        updateActionButton() {
+            const btn = this.dom.actionBtn;
+            if (this.state.transactionId) {
+                btn.textContent = 'Stop Charging';
+                btn.className = 'action-btn main-action-btn stop-btn';
+                btn.disabled = false;
+            } else {
+                btn.textContent = 'Start Charging';
+                btn.className = 'action-btn main-action-btn start-btn';
+                const isReady = this.state.status === 'Preparing' || this.state.status === 'Available';
+                btn.disabled = !isReady;
+            }
         }
 
         updateEnergy(wh) {
@@ -244,7 +428,119 @@ document.addEventListener('DOMContentLoaded', () => {
             const kwh = (wh / 1000).toFixed(2);
             this.dom.energyInfo.textContent = `${kwh} kWh`;
         }
+
+        // --- LOGIC GIẢ LẬP TỐC ĐỘ SẠC ---
+        startSimulation() {
+            if (this.simulationInterval) return; 
+            this.lastSimTime = Date.now();
+            this.simulationInterval = setInterval(() => {
+                this.runSimulationStep();
+            }, 1000); // Cập nhật mỗi giây
+        }
+
+        stopSimulation() {
+            if (this.simulationInterval) {
+                clearInterval(this.simulationInterval);
+                this.simulationInterval = null;
+            }
+        }
+
+        runSimulationStep() {
+            if (this.state.status !== 'Charging') return;
+
+            const now = Date.now();
+            const deltaTimeHours = (now - this.lastSimTime) / 1000 / 3600; 
+            this.lastSimTime = now;
+
+            const voltage = 230;
+            // Cố định 32A để đạt ~7.2kW mỗi pha
+            const currentPerPhase = 32; 
+            const pf = 0.98;
+            const activeCount = this.activePhases.filter(p => p).length;
+            
+            // Công suất tổng (kW) tăng theo số pha (1 pha=7.2kW, 3 pha=21.6kW)
+            const totalPowerKw = (voltage * currentPerPhase * pf * activeCount) / 1000;
+
+            const addedKwh = totalPowerKw * deltaTimeHours;
+            
+            const currentWh = parseFloat(this.state.energy) || 0;
+            this.state.energy = currentWh + (addedKwh * 1000);
+
+            // Hiển thị 4 số thập phân để thấy tốc độ tăng Energy khác biệt rõ ràng
+            const energyDisplay = (this.state.energy / 1000).toFixed(4); 
+            this.dom.energyInfo.textContent = `${energyDisplay} kWh`;
+            
+            this.calculateElectricalParameters(); 
+        }
         
+        calculateElectricalParameters() {
+            const voltageNoise = () => (Math.random() - 0.5) * 3; 
+            
+            let Va = 230 + voltageNoise();
+            let Vb = 230 + voltageNoise();
+            let Vc = 230 + voltageNoise();
+            
+            let Ia = 0, Ib = 0, Ic = 0;
+            let P_total = 0, Q_total = 0, PF = 0;
+
+            if (this.state.status === 'Charging') {
+                 // 32A mỗi pha để đạt công suất theo bảng
+                 const BASE_CURRENT = 32; 
+                 const currentNoise = () => (Math.random() - 0.5) * 0.5;
+
+                 if (this.activePhases[0]) Ia = BASE_CURRENT + currentNoise();
+                 if (this.activePhases[1]) Ib = BASE_CURRENT + currentNoise();
+                 if (this.activePhases[2]) Ic = BASE_CURRENT + currentNoise();
+
+                 const getPF = () => 0.98 + (Math.random() * 0.01);
+                 const PFa = this.activePhases[0] ? getPF() : 0;
+                 const PFb = this.activePhases[1] ? getPF() : 0;
+                 const PFc = this.activePhases[2] ? getPF() : 0;
+
+                 const Pa = (Va * Ia * PFa) / 1000;
+                 const Pb = (Vb * Ib * PFb) / 1000;
+                 const Pc = (Vc * Ic * PFc) / 1000;
+                 P_total = Pa + Pb + Pc;
+
+                 // Tính Q
+                 const Sa = (Va * Ia) / 1000;
+                 const Sb = (Vb * Ib) / 1000;
+                 const Sc = (Vc * Ic) / 1000;
+                 const Qa = Math.sqrt(Math.max(0, Sa*Sa - Pa*Pa));
+                 const Qb = Math.sqrt(Math.max(0, Sb*Sb - Pb*Pb));
+                 const Qc = Math.sqrt(Math.max(0, Sc*Sc - Pc*Pc));
+                 Q_total = Qa + Qb + Qc;
+
+                 const activeCount = this.activePhases.filter(p => p).length;
+                 if (activeCount > 0) PF = (PFa + PFb + PFc) / activeCount;
+            }
+
+            const Vab = Va * Math.sqrt(3);
+            const Vbc = Vb * Math.sqrt(3);
+            const Vca = Vc * Math.sqrt(3);
+            const V_avg = (Va + Vb + Vc) / 3;
+            const I_sum = Ia + Ib + Ic;
+
+            this.dom.vVal.textContent = `${V_avg.toFixed(1)} V`;
+            this.dom.vabVal.textContent = `${Vab.toFixed(1)} V`;
+            this.dom.vbcVal.textContent = `${Vbc.toFixed(1)} V`;
+            this.dom.vcaVal.textContent = `${Vca.toFixed(1)} V`;
+
+            this.dom.iVal.textContent = `${I_sum.toFixed(1)} A`;
+            this.dom.iaVal.textContent = `${Ia.toFixed(1)} A`;
+            this.dom.ibVal.textContent = `${Ib.toFixed(1)} A`;
+            this.dom.icVal.textContent = `${Ic.toFixed(1)} A`;
+
+            this.dom.pVal.textContent = `${P_total.toFixed(2)} kW`;
+            this.dom.qVal.textContent = `${Q_total.toFixed(2)} kVAR`;
+            this.dom.pfVal.textContent = `${PF.toFixed(2)}`;
+
+            if (this.state.status !== 'Charging') {
+                const kwh = (this.state.energy || 0) / 1000;
+                this.dom.energyInfo.textContent = `${kwh.toFixed(2)} kWh`;
+            }
+        }
+
         triggerHeartbeat() {
             this.dom.heartbeatIcon.classList.add('active');
             setTimeout(() => {
@@ -257,60 +553,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const wsUrl = `ws://${window.location.host}/dashboard`;
         ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => console.log("Dashboard connected to CSMS.");
+        ws.onopen = () => console.log("Dashboard connected.");
+        
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const { type, id } = data;
+            try {
+                const data = JSON.parse(event.data);
+                const { type, id } = data;
 
-            if (type === 'log') {
-                addLogRow(data);
-                return;
-            }
-            
-            if (type === 'fullStatus') {
-                chargersContainer.innerHTML = '';
-                chargePointCards.clear();
-                data.chargePoints.forEach(cpState => {
-                    if (!chargePointCards.has(cpState.id)) {
-                        chargePointCards.set(cpState.id, new ChargePointCard(cpState.id, cpState));
-                    }
-                });
-                return;
-            }
-            
-            if (!id) return;
+                if (type === 'log') {
+                    addLogRow(data);
+                    return;
+                }
+                
+                if (type === 'fullStatus') {
+                    chargersContainer.innerHTML = '';
+                    chargePointCards.clear();
+                    data.chargePoints.forEach(cpState => {
+                        if (!chargePointCards.has(cpState.id)) {
+                            const card = new ChargePointCard(cpState.id, cpState);
+                            chargePointCards.set(cpState.id, card);
+                        }
+                    });
+                    return;
+                }
+                
+                if (!id) return;
 
-            let card = chargePointCards.get(id);
-            if (!card && (type === 'connect' || type === 'boot')) {
-                card = new ChargePointCard(data.id, data.state);
-                chargePointCards.set(data.id, card);
-            }
-            
-            if (!card) return;
+                let card = chargePointCards.get(id);
+                if (!card && (type === 'connect' || type === 'boot')) {
+                    card = new ChargePointCard(data.id, data.state);
+                    chargePointCards.set(data.id, card);
+                }
+                
+                if (!card) return;
 
-            switch (type) {
-                case 'connect':
-                case 'boot':
-                    card.updateAll(data.state);
-                    break;
-                case 'disconnect':
-                    card.updateConnectionStatus(false);
-                    break;
-                case 'status':
-                    card.updateStatus(data.status);
-                    break;
-                case 'transactionStart':
-                    card.updateTransaction(data.transactionId);
-                    break;
-                case 'transactionStop':
-                    card.updateTransaction(null);
-                    break;
-                case 'meterValue':
-                    card.updateEnergy(data.value);
-                    break;
-                case 'heartbeat':
-                    card.triggerHeartbeat();
-                    break;
+                if (type === 'connect' || type === 'boot') card.updateAll(data.state);
+                if (type === 'disconnect') card.updateConnectionStatus(false);
+                if (type === 'status') card.updateStatus(data.status);
+                if (type === 'transactionStart') card.updateTransaction(data.transactionId);
+                if (type === 'transactionStop') card.updateTransaction(null);
+                if (type === 'meterValue') card.updateEnergy(data.value);
+                if (type === 'heartbeat') card.triggerHeartbeat();
+
+            } catch (e) {
+                console.error("Error processing WebSocket message:", e);
             }
         };
 
@@ -319,6 +605,11 @@ document.addEventListener('DOMContentLoaded', () => {
             chargePointCards.forEach(card => card.updateConnectionStatus(false));
             setTimeout(connectDashboard, 3000);
         };
+        
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            ws.close();
+        }
     }
     
     connectDashboard();

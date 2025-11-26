@@ -8,36 +8,102 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="main-container">
-        <header class="main-header">
-            <h1><i class="fa-solid fa-server"></i> CSMS Dashboard</h1>
-        </header>
-
-        <!-- BẢNG LOG MỚI -->
-        <section class="global-log-section">
-            <div class="log-header">
-                <h2><i class="fa-solid fa-file-waveform"></i> Global OCPP Log</h2>
+    <div class="app-container">
+        <!-- SIDEBAR BÊN TRÁI -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-bolt"></i> CSMS Admin</h2>
             </div>
-            <div class="log-table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Direction</th>
-                            <th>Charge Point ID</th>
-                            <th>Action</th>
-                            <th>Payload</th>
-                        </tr>
-                    </thead>
-                    <tbody id="global-log-body">
-                        <!-- Log entries will be populated here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-link active" onclick="openTab('realtime-view', this)">
+                    <div class="icon-container"><i class="fa-solid fa-chart-line"></i></div>
+                    <span>Real-time Status</span>
+                </a>
+                <a href="#" class="nav-link" onclick="openTab('database-view', this)">
+                    <div class="icon-container"><i class="fa-solid fa-database"></i></div>
+                    <span>Charging History</span>
+                </a>
+            </nav>
+        </aside>
 
-        <main id="chargers-container">
-            <!-- JavaScript sẽ tự động tạo các trạm sạc ở đây -->
+        <!-- KHU VỰC NỘI DUNG BÊN PHẢI -->
+        <main class="main-content-area">
+            <header class="content-header">
+                <h1>Overview</h1>
+                <div class="user-profile">
+                    <span class="status-indicator online"></span>
+                    <i class="fa-solid fa-circle-user"></i> Admin System
+                </div>
+            </header>
+
+            <!-- View 1: Realtime -->
+            <div id="realtime-view" class="tab-content active">
+                <section class="global-log-section">
+                    <div class="log-header">
+                        <h2><i class="fa-solid fa-file-waveform"></i> Global OCPP Log</h2>
+                    </div>
+                    <div class="log-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Direction</th>
+                                    <th>Charge Point ID</th>
+                                    <th>Action</th>
+                                    <th>Payload</th>
+                                </tr>
+                            </thead>
+                            <tbody id="global-log-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <div id="chargers-container"></div>
+            </div>
+
+            <!-- View 2: Database History -->
+            <div id="database-view" class="tab-content" style="display: none;">
+                <section class="sql-section global-log-section">
+                    <div class="log-header">
+                        <h2><i class="fa-solid fa-list"></i> Transaction History</h2>
+                        
+                        <!-- KHU VỰC TÌM KIẾM -->
+                        <div class="search-bar-container">
+                            <div class="search-input-group">
+                                <i class="fa-solid fa-hashtag"></i>
+                                <input type="text" id="search-tx-id" placeholder="Tx ID...">
+                            </div>
+                            <div class="search-input-group">
+                                <i class="fa-solid fa-charging-station"></i>
+                                <input type="text" id="search-cp-id" placeholder="Charge Point...">
+                            </div>
+                            <div class="search-input-group">
+                                <i class="fa-solid fa-calendar"></i>
+                                <input type="date" id="search-date">
+                            </div>
+                            <button onclick="loadSqlData()" class="refresh-btn"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="log-table-container">
+                        <table class="sql-table">
+                            <thead>
+                                <tr>
+                                    <th>Tx ID</th>
+                                    <th>Charge Point</th>
+                                    <th>ID Tag</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Energy (Wh)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sql-table-body">
+                                <tr><td colspan="6" style="text-align:center">Click Refresh to load data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
         </main>
     </div>
     <script src="/app.js"></script>

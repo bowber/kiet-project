@@ -101,10 +101,33 @@ async function stopTransaction(transactionId, meterStop) {
     }
 }
 
+// Hàm lấy lịch sử giao dịch để hiển thị lên Dashboard
+async function getRecentTransactions() {
+    if (!pool) return [];
+    try {
+        // Lấy 50 giao dịch gần nhất, sắp xếp mới nhất lên đầu
+        const sql = `
+            SELECT t.id, t.charge_point_id, t.id_tag, 
+                   t.start_time, t.stop_time, 
+                   t.meter_start, t.meter_stop,
+                   (t.meter_stop - t.meter_start) as total_energy
+            FROM transactions t
+            ORDER BY t.start_time DESC 
+            LIMIT 50
+        `;
+        const [rows] = await pool.execute(sql);
+        return rows;
+    } catch (err) {
+        console.error('[Database] Lỗi lấy dữ liệu transactions:', err);
+        return [];
+    }
+}
+
 module.exports = {
     initDb,
     updateChargePoint,
     recordHeartbeat,
     startTransaction,
-    stopTransaction
+    stopTransaction,
+    getRecentTransactions
 };

@@ -50,7 +50,8 @@ function updateOpcuaTag(chargePointId, tagName, value) {
 
 function createOpcUaNodesForChargePoint(chargePointId) {
     const namespace = opcUaAddressSpace.getOwnNamespace();
-    const chargePointsFolder = opcUaAddressSpace.findNode("ns=1;s=ChargePointsFolder");
+    const nsIndex = namespace.index;
+    const chargePointsFolder = opcUaAddressSpace.findNode(`ns=${nsIndex};s=ChargePointsFolder`);
 
     if (!chargePointsFolder) {
         console.error("[OPC UA] Lỗi nghiêm trọng: Không tìm thấy 'ChargePointsFolder'.");
@@ -60,34 +61,38 @@ function createOpcUaNodesForChargePoint(chargePointId) {
     let chargePointFolder = chargePointsFolder.getChildByName(chargePointId);
     const nodes = {};
 
+    const folderNodeId = `ns=${nsIndex};s=${chargePointId}`;
+    const variableNodeId = (name) => `ns=${nsIndex};s=${chargePointId}.${name}`;
+
     if (!chargePointFolder) {
         // --- Tạo mới mọi thứ ---
         console.log(`[OPC UA] Đang tạo thư mục mới cho ${chargePointId}`);
         chargePointFolder = namespace.addFolder(chargePointsFolder, {
-            browseName: chargePointId
+            browseName: chargePointId,
+            nodeId: folderNodeId
         });
 
-        // Tạo các node con (chỉ tạo khi thư mục mới)
-        nodes.Status = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Status", dataType: DataType.String, value: { dataType: DataType.String, value: "Connecting" } });
-        nodes.Energy_Wh = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Energy_Wh", dataType: DataType.Double, value: { dataType: DataType.Double, value: 0 } });
-        nodes.TransactionID = namespace.addVariable({ componentOf: chargePointFolder, browseName: "TransactionID", dataType: DataType.Int32, value: { dataType: DataType.Int32, value: 0 } });
-        nodes.Vendor = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Vendor", dataType: DataType.String, value: { dataType: DataType.String, value: "" } });
-        nodes.Model = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Model", dataType: DataType.String, value: { dataType: DataType.String, value: "" } });
-        nodes.RemoteStartTrigger = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStart_Trigger", dataType: DataType.Boolean, value: { dataType: DataType.Boolean, value: false }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite" });
-        nodes.RemoteStart_IdTag = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStart_IdTag", dataType: DataType.String, value: { dataType: DataType.String, value: "0000" }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite" });
-        nodes.RemoteStopTrigger = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStop_Trigger", dataType: DataType.Boolean, value: { dataType: DataType.Boolean, value: false }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite" });
+        // Tạo các node con với explicit nodeId
+        nodes.Status = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Status", dataType: DataType.String, value: { dataType: DataType.String, value: "Connecting" }, nodeId: variableNodeId("Status") });
+        nodes.Energy_Wh = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Energy_Wh", dataType: DataType.Double, value: { dataType: DataType.Double, value: 0 }, nodeId: variableNodeId("Energy_Wh") });
+        nodes.TransactionID = namespace.addVariable({ componentOf: chargePointFolder, browseName: "TransactionID", dataType: DataType.Int32, value: { dataType: DataType.Int32, value: 0 }, nodeId: variableNodeId("TransactionID") });
+        nodes.Vendor = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Vendor", dataType: DataType.String, value: { dataType: DataType.String, value: "" }, nodeId: variableNodeId("Vendor") });
+        nodes.Model = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Model", dataType: DataType.String, value: { dataType: DataType.String, value: "" }, nodeId: variableNodeId("Model") });
+        nodes.RemoteStartTrigger = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStart_Trigger", dataType: DataType.Boolean, value: { dataType: DataType.Boolean, value: false }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite", nodeId: variableNodeId("RemoteStart_Trigger") });
+        nodes.RemoteStart_IdTag = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStart_IdTag", dataType: DataType.String, value: { dataType: DataType.String, value: "0000" }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite", nodeId: variableNodeId("RemoteStart_IdTag") });
+        nodes.RemoteStopTrigger = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStop_Trigger", dataType: DataType.Boolean, value: { dataType: DataType.Boolean, value: false }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite", nodeId: variableNodeId("RemoteStop_Trigger") });
     
     } else {
-        // --- Lấy lại các node cũ ---
+        // --- Lấy lại các node cũ bằng findNode với explicit nodeId ---
         console.log(`[OPC UA] Đã tìm thấy thư mục ${chargePointId}, đang sử dụng lại.`);
-        nodes.Status = chargePointFolder.getChildByName("Status");
-        nodes.Energy_Wh = chargePointFolder.getChildByName("Energy_Wh");
-        nodes.TransactionID = chargePointFolder.getChildByName("TransactionID");
-        nodes.Vendor = chargePointFolder.getChildByName("Vendor");
-        nodes.Model = chargePointFolder.getChildByName("Model");
-        nodes.RemoteStartTrigger = chargePointFolder.getChildByName("RemoteStart_Trigger");
-        nodes.RemoteStart_IdTag = chargePointFolder.getChildByName("RemoteStart_IdTag");
-        nodes.RemoteStopTrigger = chargePointFolder.getChildByName("RemoteStop_Trigger");
+        nodes.Status = namespace.findNode(variableNodeId("Status"));
+        nodes.Energy_Wh = namespace.findNode(variableNodeId("Energy_Wh"));
+        nodes.TransactionID = namespace.findNode(variableNodeId("TransactionID"));
+        nodes.Vendor = namespace.findNode(variableNodeId("Vendor"));
+        nodes.Model = namespace.findNode(variableNodeId("Model"));
+        nodes.RemoteStartTrigger = namespace.findNode(variableNodeId("RemoteStart_Trigger"));
+        nodes.RemoteStart_IdTag = namespace.findNode(variableNodeId("RemoteStart_IdTag"));
+        nodes.RemoteStopTrigger = namespace.findNode(variableNodeId("RemoteStop_Trigger"));
     }
 
     if (!nodes.RemoteStartTrigger || !nodes.RemoteStopTrigger || !nodes.RemoteStart_IdTag) {
@@ -216,9 +221,12 @@ async function initializeOpcUaServer() {
     opcUaAddressSpace = opcUaServer.engine.addressSpace;
     const objectsFolder = opcUaAddressSpace.findNode("i=85");
     // Tạo một thư mục gốc cho các trạm sạc
-    opcUaAddressSpace.getOwnNamespace().addFolder(objectsFolder, {
+    const namespace = opcUaAddressSpace.getOwnNamespace();
+    const nsIndex = namespace.index;
+    
+    namespace.addFolder(objectsFolder, {
         browseName: "ChargePoints",
-        nodeId: "ns=1;s=ChargePointsFolder"
+        nodeId: `ns=${nsIndex};s=ChargePointsFolder`
     });
 
     console.log("[OPC UA] Server đã được khởi tạo và sẵn sàng.");
@@ -230,8 +238,24 @@ async function initializeOpcUaServer() {
 }
 
 // --- HTTP SERVER ---
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     const pathname = req.url.split('?')[0];
+
+    // API để lấy dữ liệu lịch sử từ Database
+    if (pathname === '/api/history') {
+        try {
+            const data = await db.getRecentTransactions();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(data));
+        } catch (e) {
+            console.error("[API] Lỗi API history:", e);
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Internal Server Error' }));
+        }
+        return; 
+    }
+
+    // Xử lý file tĩnh thông thường
     let filePath = path.join(__dirname, 'public', pathname);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
         filePath = path.join(filePath, 'index.html');
@@ -337,6 +361,9 @@ wss.on('connection', (ws, req) => {
         console.log(`[Master] Client '${chargePointId}' đã kết nối.`);
         broadcastToDashboards({ type: 'connect', id: chargePointId, state: chargePointState });
     
+        // Ghi nhận kết nối vào Database
+        db.updateChargePoint(chargePointId, '', '');
+        db.recordHeartbeat(chargePointId);
 
         ws.on('message', (message) => {
             const currentCp = clients.chargePoints.get(chargePointId);
@@ -351,10 +378,17 @@ wss.on('connection', (ws, req) => {
                 const parsedMessage = JSON.parse(messageString);
                 const [,, action, payload] = parsedMessage;
 
+                // Cập nhật DB Last Seen mỗi khi nhận message
+                db.recordHeartbeat(chargePointId);
+
                 if (action === 'BootNotification') {
                     chargePointState.vendor = payload.chargePointVendor;
                     chargePointState.model = payload.chargePointModel;
                     chargePointState.status = 'Available';
+                    
+                    // Cập nhật thông tin vào DB
+                    db.updateChargePoint(chargePointId, chargePointState.vendor, chargePointState.model);
+                    
                     broadcastToDashboards({ type: 'boot', id: chargePointId, state: chargePointState });
                     updateOpcuaTag(chargePointId, "Vendor", chargePointState.vendor);
                     updateOpcuaTag(chargePointId, "Model", chargePointState.model);
@@ -364,6 +398,14 @@ wss.on('connection', (ws, req) => {
                     broadcastToDashboards({ type: 'status', id: chargePointId, status: chargePointState.status });
                     updateOpcuaTag(chargePointId, "Status", chargePointState.status);
                 } else if (action === 'StopTransaction') {
+                    const txId = payload.transactionId;
+                    const meterStop = payload.meterStop;
+                    
+                    // Cập nhật DB
+                    if (txId) {
+                        db.stopTransaction(txId, meterStop);
+                    }
+
                     chargePointState.transactionId = null;
                     chargePointState.energy = 0; // Reset energy khi dừng
                     broadcastToDashboards({ type: 'transactionStop', id: chargePointId, transactionId: null });
@@ -414,6 +456,10 @@ wss.on('connection', (ws, req) => {
                              if (chargePointState) {
                                  chargePointState.transactionId = payload.transactionId;
                                  chargePointState.energy = 0; // Reset energy khi bắt đầu
+                                 
+                                 // Ghi vào DB (Start Transaction)
+                                 db.startTransaction(chargePointId, payload.transactionId, "UNKNOWN_TAG", 0);
+
                                  broadcastToDashboards({ type: 'transactionStart', id: chargePointId, transactionId: chargePointState.transactionId });
                         
                                  updateOpcuaTag(chargePointId, "TransactionID", payload.transactionId);
@@ -520,12 +566,64 @@ function monitorOpcUaWrites(chargePointId, opcuaNodes) {
     });
 }
 
+// --- XỬ LÝ GRACEFUL SHUTDOWN ---
+// Giúp giải phóng PORT và kill các tiến trình con khi server tắt
+async function gracefulShutdown() {
+    console.log('\n[System] Đang tắt server và dọn dẹp tài nguyên...');
+
+    // 1. Dừng nhận kết nối mới
+    server.close(() => {
+        console.log('[System] HTTP/WebSocket Server đã đóng.');
+    });
+
+    // 2. Kill toàn bộ Python child processes đang chạy
+    if (clients.chargePoints.size > 0) {
+        console.log(`[System] Đang kill ${clients.chargePoints.size} tiến trình Python...`);
+        clients.chargePoints.forEach((cp, id) => {
+            if (cp.python) {
+                cp.python.kill('SIGINT');
+                console.log(`[System] Đã kill Python handler của ${id}`);
+            }
+        });
+    }
+
+    // 3. Shutdown OPC UA Server
+    if (opcUaServer) {
+        try {
+            await opcUaServer.shutdown();
+            console.log('[System] OPC UA Server đã dừng.');
+        } catch (err) {
+            console.error('[System] Lỗi khi dừng OPC UA Server:', err);
+        }
+    }
+
+    // 4. Thoát
+    console.log('[System] Hoàn tất dọn dẹp. Bye!');
+    setTimeout(() => process.exit(0), 1000);
+}
+
+// Lắng nghe các tín hiệu tắt từ hệ thống
+process.on('SIGINT', gracefulShutdown);  // Ctrl+C
+process.on('SIGTERM', gracefulShutdown); // Kill command
+
 // --- KHỞI ĐỘNG SERVER ---
 async function startServer() {
     try {
         await db.initDb();
         await initializeOpcUaServer();
-        const PORT = 9000;
+        const PORT = process.env.PORT || 9000;
+        
+        // Xử lý lỗi port conflict
+        server.on('error', (e) => {
+            if (e.code === 'EADDRINUSE') {
+                console.error(`[LỖI NGHIÊM TRỌNG] Cổng ${PORT} đang bị chiếm dụng!`);
+                console.error('Hãy thử chạy lệnh sau để kill process cũ:');
+                console.error(`  - Windows: netstat -ano | findstr :${PORT} -> taskkill /PID <PID> /F`);
+                console.error(`  - Linux/Mac: lsof -i :${PORT} -> kill -9 <PID>`);
+                process.exit(1);
+            }
+        });
+
         server.listen(PORT, '0.0.0.0', () => {
             console.log(`CSMS Master Server đang chạy trên cổng ${PORT}`);
         });
