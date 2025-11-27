@@ -156,6 +156,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendRequest = (action, payload) => sendMessage(2, generateUniqueId(), action, payload);
     const sendResponse = (uniqueId, payload) => sendMessage(3, uniqueId, payload);
 
+    const resetToEmptyState = () => {
+    console.log("Resetting to empty state...");
+    
+    //Xóa giao diện sạc, hiển thị lại Placeholder (Cửa sổ trống)
+    if (connectorsContainer) {
+        connectorsContainer.innerHTML = `
+            <div class="connector-placeholder">
+                <i class="fa-solid fa-plug-circle-xmark"></i>
+                <p>Please connect to a Charge Point using the Connection tab below.</p>
+            </div>
+        `;
+    }
+
+    // Chuyển tab về màn hình Connection (để người dùng kết nối lại)
+    const targetViewId = 'connection-view'; 
+
+    // Cập nhật Tab hiển thị
+    views.forEach(view => {
+        view.classList.toggle('active', view.id === targetViewId);
+    });
+
+    // Cập nhật Bottom Navigation (Active icon)
+    navItems.forEach(item => {
+        if (item.dataset.view === targetViewId) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+
+    // Reset biến dữ liệu
+    chargePoint = null; 
+    
+    // Cập nhật Banner trạng thái
+    statusBanner.style.display = 'block';
+    statusBanner.className = 'connection-status-banner error';
+    statusBanner.textContent = 'Disconnected. Please connect again.';
+    };
 
     connectBtn.addEventListener('click', () => {
         const backendUrl = backendUrlInput.value.trim();
@@ -165,6 +203,14 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please provide both Backend URL and Chargebox ID.');
             return;
         }
+
+        // Chuyển sang View Status
+        views.forEach(view => view.classList.remove('active'));
+        document.getElementById('status-view').classList.add('active');
+
+        // Cập nhật Bottom Nav sang Status
+        navItems.forEach(item => item.classList.remove('active'));
+        document.querySelector('[data-view="status-view"]').classList.add('active');
 
         const fullUrl = `${backendUrl}/${chargeboxId}`;
         statusBanner.style.display = 'block';
@@ -176,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         websocket = new WebSocket(fullUrl);
 
         websocket.onopen = () => {
+            console.log('Connected');
             statusBanner.classList.add('success');
             statusBanner.textContent = `Successfully connected to ${chargeboxId}.`;
             chargePoint = new ChargePointStatus(chargeboxId, sendRequest, sendResponse);
@@ -188,6 +235,15 @@ document.addEventListener('DOMContentLoaded', () => {
         websocket.onmessage = (event) => {
             const message = JSON.parse(event.data);
             console.log('RECEIVED:', message);
+            if (message && message[2] && message[2].status) {
+                const status = message[2].status;
+                // Nếu trạng thái là Offline hoặc Faulted -> Reset về màn hình trống
+                if (status === 'Offline' || status === 'Faulted') {
+                    resetToEmptyState();
+                    if (websocket) websocket.close();
+                    return;
+                }
+            }
             if (chargePoint) {
                 chargePoint.handleMessage(message);
             }
@@ -203,6 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusBanner.classList.add('error');
                 statusBanner.textContent = `Connection with ${chargeboxId} closed.`;
                 chargePoint = null;
+                resetToEmptyState();
              }
         };
     });
