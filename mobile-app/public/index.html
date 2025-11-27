@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>MicroOcpp Client</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="mobile-app">
+        <!-- Main Content -->
+        <main class="mobile-content">
+            <!-- View 1: Status -->
+            <div id="status-view" class="view active">
+                <div id="connectors-container">
+                    <div class="connector-placeholder">
+                        <i class="fa-solid fa-plug-circle-xmark"></i>
+                        <p>Please connect to a Charge Point using the Connection tab below.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View 2: Connection -->
+            <div id="connection-view" class="view">
+                <div class="connection-form">
+                    <div class="connection-status-banner"></div>
+                    
+                    <!-- QR Scanner Section -->
+                    <div class="qr-scanner-section">
+                        <h3><i class="fa-solid fa-qrcode"></i> Scan QR Code</h3>
+                        <div id="qr-reader"></div>
+                        <button id="toggle-scanner-btn" class="scanner-toggle-btn">
+                            <i class="fa-solid fa-camera"></i> Start Scanner
+                        </button>
+                    </div>
+
+                    <div class="divider">
+                        <span>OR</span>
+                    </div>
+
+                    <!-- Manual Entry Section -->
+                    <div class="manual-entry-section">
+                        <h3><i class="fa-solid fa-keyboard"></i> Manual Entry</h3>
+                        <div class="form-group">
+                            <label for="backend-url-input">Backend URL</label>
+                            <input type="text" id="backend-url-input" value="ws://localhost:9000">
+                        </div>
+                        <div class="form-group">
+                            <label for="chargebox-id-input">Chargebox ID</label>
+                            <input type="text" id="chargebox-id-input" placeholder="Enter ID from SCADA list">
+                        </div>
+                    </div>
+
+                    <button id="connect-btn" class="connect-btn">
+                        <i class="fa-solid fa-plug"></i> Connect
+                    </button>
+                </div>
+            </div>
+
+            <!-- View 3: Stripe Payment (Dedicated Screen) -->
+            <div id="stripe-payment-view" class="view">
+                <div class="stripe-payment-container">
+                    <div class="stripe-payment-header">
+                        <button class="back-nav-btn" id="stripe-back-nav-btn">
+                            <i class="fa-solid fa-arrow-left"></i>
+                        </button>
+                        <h2><i class="fab fa-cc-stripe"></i> Card Payment</h2>
+                    </div>
+                    
+                    <div class="stripe-payment-content">
+                        <!-- Card Display -->
+                        <div class="stripe-card-display">
+                            <div class="stripe-card-chip"></div>
+                            <div class="stripe-card-number-display">•••• •••• •••• ••••</div>
+                            <div class="stripe-card-info-row">
+                                <span class="stripe-card-holder-display">CARD HOLDER</span>
+                                <span class="stripe-card-expiry-display">MM/YY</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Form -->
+                        <div class="stripe-payment-form">
+                            <div class="form-group">
+                                <label for="stripe-card-number-input">Card Number</label>
+                                <input type="text" id="stripe-card-number-input" placeholder="4242 4242 4242 4242" maxlength="19">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="stripe-expiry-input">Expiry Date</label>
+                                    <input type="text" id="stripe-expiry-input" placeholder="MM/YY" maxlength="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="stripe-cvc-input">CVC</label>
+                                    <input type="text" id="stripe-cvc-input" placeholder="123" maxlength="3">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="stripe-name-input">Cardholder Name</label>
+                                <input type="text" id="stripe-name-input" placeholder="JOHN DOE">
+                            </div>
+                            
+                            <!-- Amount Display -->
+                            <div class="stripe-payment-amount-display">
+                                <span class="amount-label">Amount to Pay</span>
+                                <span class="amount-value" id="stripe-payment-amount-value">0 VND</span>
+                            </div>
+                            
+                            <!-- Pay Button -->
+                            <button class="action-btn stripe-payment-btn" id="stripe-payment-btn">
+                                <i class="fas fa-lock"></i> Pay Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+            <!-- View 3: Payment -->
+            <div id="payment-view" class="view">
+                <div class="payment-container">
+                    <!-- Payment screens will be dynamically shown here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active" data-view="status-view">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span>Status</span>
+            </a>
+            <a href="#" class="nav-item" data-view="connection-view">
+                <i class="fa-solid fa-plug"></i>
+                <span>Connect</span>
+            </a>
+            <a href="#" class="nav-item payment-nav-item" data-view="payment-view" style="display: none;">
+                <i class="fa-solid fa-credit-card"></i>
+                <span>Payment</span>
+            </a>
+        </nav>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
