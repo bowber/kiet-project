@@ -1,7 +1,6 @@
 const mysql = require('mysql2/promise');
 
 // --- CẤU HÌNH KẾT NỐI ---
-// Sử dụng biến môi trường cho Docker, fallback về giá trị mặc định cho development
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',      
     user: process.env.DB_USER || 'root',           
@@ -13,15 +12,12 @@ let pool;
 
 async function initDb() {
     try {
-        // Tạo một connection pool để quản lý kết nối hiệu quả
         pool = mysql.createPool(dbConfig);
-
-        // Kiểm tra kết nối
         const connection = await pool.getConnection();
         console.log('[Database] Kết nối MySQL thành công.');
         connection.release();
 
-        // Tạo các bảng nếu chúng chưa tồn tại
+        // 1. Tạo bảng gốc nếu chưa có
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS charge_points (
                 id VARCHAR(255) PRIMARY KEY,
@@ -31,6 +27,12 @@ async function initDb() {
             );
         `);
 
+        // 2. AUTO MIGRATION: Tự động thêm các cột mới nếu thiếu
+        try { await pool.execute("ALTER TABLE charge_points ADD COLUMN status VARCHAR(50) DEFAULT 'Offline'"); } catch (e) {}
+        try { await pool.execute("ALTER TABLE charge_points ADD COLUMN location VARCHAR(255)"); } catch (e) {}
+        try { await pool.execute("ALTER TABLE charge_points ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
+
+        // Tạo bảng transactions
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS transactions (
                 id INT PRIMARY KEY,
@@ -43,12 +45,69 @@ async function initDb() {
                 FOREIGN KEY (charge_point_id) REFERENCES charge_points(id)
             );
         `);
-        console.log('[Database] Các bảng đã được khởi tạo thành công.');
+        
+        console.log('[Database] Kiểm tra cấu trúc bảng hoàn tất.');
+
     } catch (err) {
         console.error('[Database] Lỗi khởi tạo MySQL:', err.message);
-        console.log('[Database] Vui lòng kiểm tra lại thông tin kết nối trong database.js và đảm bảo MySQL server đang chạy.');
-        // Dừng server nếu không kết nối được database
-        process.exit(1); 
+    }
+}
+
+// --- CÁC HÀM TRUY VẤN ---
+
+async function getAllChargePoints() {
+    if (!pool) return [];
+    try {
+        // Sắp xếp theo last_seen để tránh lỗi nếu cột created_at chưa tồn tại ở DB cũ
+        const [rows] = await pool.execute('SELECT * FROM charge_points ORDER BY last_seen DESC');
+        return rows;
+    } catch (err) {
+        console.error('[Database] Lỗi getAllChargePoints:', err.message);
+        return [];
+    }
+}
+
+async function createChargePoint(id, location) {
+    if (!pool) return;
+    try {
+        const sql = `
+            INSERT INTO charge_points (id, location, status, vendor, model, last_seen, created_at)
+            VALUES (?, ?, 'Unavailable', 'Unknown', 'Unknown', NULL, NOW())
+        `;
+        await pool.execute(sql, [id, location]);
+        console.log(`[Database] Đã thêm/cập nhật trạm ${id}`);
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+            throw new Error(`Trạm sạc ID '${id}' đã tồn tại! Không thể thêm mới.`);
+        }
+        console.error('[Database] Lỗi createChargePoint:', err);
+        throw err;
+    }
+}
+
+// --- SỬA LỖI XÓA TRẠM TẠI ĐÂY ---
+async function deleteChargePoint(id) {
+    if (!pool) return;
+    
+    // Lấy riêng 1 connection để dùng Transaction (đảm bảo xóa sạch hoặc không xóa gì cả)
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction(); // Bắt đầu giao dịch
+
+        // 1. Xóa các giao dịch liên quan trước (để gỡ khóa ngoại)
+        await connection.execute('DELETE FROM transactions WHERE charge_point_id = ?', [id]);
+        
+        // 2. Sau đó mới xóa trạm sạc
+        await connection.execute('DELETE FROM charge_points WHERE id = ?', [id]);
+
+        await connection.commit(); // Xác nhận lưu thay đổi
+        console.log(`[Database] Đã xóa trạm ${id} và toàn bộ lịch sử giao dịch.`);
+    } catch (err) {
+        await connection.rollback(); // Nếu lỗi thì hoàn tác
+        console.error('[Database] Lỗi deleteChargePoint:', err);
+        throw err;
+    } finally {
+        connection.release(); // Trả connection về hồ chứa
     }
 }
 
@@ -56,26 +115,37 @@ async function updateChargePoint(id, vendor, model) {
     if (!pool) return;
     try {
         const sql = `
-            INSERT INTO charge_points (id, vendor, model, last_seen) 
-            VALUES (?, ?, ?, ?)
+            INSERT INTO charge_points (id, vendor, model, last_seen, status) 
+            VALUES (?, ?, ?, NOW(), 'Available')
             ON DUPLICATE KEY UPDATE 
                 vendor = VALUES(vendor), 
                 model = VALUES(model), 
-                last_seen = VALUES(last_seen);
+                last_seen = NOW(),
+                status = 'Available'
         `;
-        await pool.execute(sql, [id, vendor, model, new Date()]);
+        await pool.execute(sql, [id, vendor, model]);
     } catch (err) {
-        console.error(`[Database] Lỗi khi cập nhật trạm sạc ${id}:`, err);
+        console.error(`[Database] Lỗi updateChargePoint ${id}:`, err);
+    }
+}
+
+async function updateChargePointStatus(id, status) {
+    if (!pool) return;
+    try {
+        const sql = 'UPDATE charge_points SET status = ?, last_seen = NOW() WHERE id = ?';
+        await pool.execute(sql, [status, id]);
+    } catch (err) {
+        console.error(`[Database] Lỗi update status ${id}:`, err);
     }
 }
 
 async function recordHeartbeat(id) {
     if (!pool) return;
     try {
-        const sql = 'UPDATE charge_points SET last_seen = ? WHERE id = ?';
-        await pool.execute(sql, [new Date(), id]);
+        const sql = 'UPDATE charge_points SET last_seen = NOW() WHERE id = ?';
+        await pool.execute(sql, [id]);
     } catch (err) {
-        console.error(`[Database] Lỗi khi ghi nhận Heartbeat cho ${id}:`, err);
+        console.error(`[Database] Lỗi heartbeat ${id}:`, err);
     }
 }
 
@@ -84,9 +154,8 @@ async function startTransaction(chargePointId, transactionId, idTag, meterStart)
     try {
         const sql = 'INSERT INTO transactions (id, charge_point_id, start_time, meter_start, id_tag) VALUES (?, ?, ?, ?, ?)';
         await pool.execute(sql, [transactionId, chargePointId, new Date(), meterStart, idTag]);
-        console.log(`[Database] Bắt đầu giao dịch ${transactionId} cho trạm ${chargePointId}.`);
     } catch (err) {
-        console.error(`[Database] Lỗi khi bắt đầu giao dịch ${transactionId}:`, err);
+        console.error(`[Database] Lỗi startTransaction ${transactionId}:`, err);
     }
 }
 
@@ -95,17 +164,14 @@ async function stopTransaction(transactionId, meterStop) {
     try {
         const sql = 'UPDATE transactions SET stop_time = ?, meter_stop = ? WHERE id = ?';
         await pool.execute(sql, [new Date(), meterStop, transactionId]);
-        console.log(`[Database] Kết thúc giao dịch ${transactionId}.`);
     } catch (err) {
-        console.error(`[Database] Lỗi khi kết thúc giao dịch ${transactionId}:`, err);
+        console.error(`[Database] Lỗi stopTransaction ${transactionId}:`, err);
     }
 }
 
-// Hàm lấy lịch sử giao dịch để hiển thị lên Dashboard
 async function getRecentTransactions() {
     if (!pool) return [];
     try {
-        // Lấy 50 giao dịch gần nhất, sắp xếp mới nhất lên đầu
         const sql = `
             SELECT t.id, t.charge_point_id, t.id_tag, 
                    t.start_time, t.stop_time, 
@@ -118,14 +184,18 @@ async function getRecentTransactions() {
         const [rows] = await pool.execute(sql);
         return rows;
     } catch (err) {
-        console.error('[Database] Lỗi lấy dữ liệu transactions:', err);
+        console.error('[Database] Lỗi getRecentTransactions:', err);
         return [];
     }
 }
 
 module.exports = {
     initDb,
+    getAllChargePoints,
+    createChargePoint,
+    deleteChargePoint,
     updateChargePoint,
+    updateChargePointStatus,
     recordHeartbeat,
     startTransaction,
     stopTransaction,

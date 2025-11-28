@@ -1,20 +1,21 @@
--- Khởi tạo cơ sở dữ liệu OCPP CSMS
--- Script này sẽ tự động chạy khi MySQL container khởi động lần đầu
-
+-- Khởi tạo hoặc cập nhật database
 CREATE DATABASE IF NOT EXISTS ocpp_csms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE ocpp_csms;
 
--- Bảng quản lý các trạm sạc
+-- Bảng quản lý các trạm sạc (Thêm cột location và status)
 CREATE TABLE IF NOT EXISTS charge_points (
     id VARCHAR(255) PRIMARY KEY,
     vendor VARCHAR(255),
     model VARCHAR(255),
+    location VARCHAR(255), 
+    status VARCHAR(50) DEFAULT 'Offline',
     last_seen DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_last_seen (last_seen)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Bảng quản lý các giao dịch sạc
+-- Bảng transactions giữ nguyên
 CREATE TABLE IF NOT EXISTS transactions (
     id INT PRIMARY KEY,
     charge_point_id VARCHAR(255),
@@ -25,16 +26,5 @@ CREATE TABLE IF NOT EXISTS transactions (
     id_tag VARCHAR(255),
     FOREIGN KEY (charge_point_id) REFERENCES charge_points(id) ON DELETE CASCADE,
     INDEX idx_charge_point (charge_point_id),
-    INDEX idx_start_time (start_time),
-    INDEX idx_stop_time (stop_time)
+    INDEX idx_start_time (start_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Tạo user mới với quyền hạn (nếu chưa tồn tại)
--- User này sẽ được sử dụng bởi ứng dụng thay vì root
-CREATE USER IF NOT EXISTS 'ocpp_user'@'%' IDENTIFIED BY 'ocpp_pass';
-GRANT ALL PRIVILEGES ON ocpp_csms.* TO 'ocpp_user'@'%';
-FLUSH PRIVILEGES;
-
--- Dữ liệu mẫu (tùy chọn - có thể xóa nếu không cần)
--- INSERT INTO charge_points (id, vendor, model, last_seen) 
--- VALUES ('DEMO-CP-001', 'Demo Vendor', 'Demo Model', NOW());

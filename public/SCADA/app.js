@@ -129,6 +129,22 @@ document.addEventListener('DOMContentLoaded', () => {
         qrCodeContainer.classList.remove('hidden');
     };
 
+    const updateStationList = (stationData) => {
+        // stationData có thể là mảng (fullStatus) hoặc object đơn (connect/update)
+        const list = Array.isArray(stationData) ? stationData : [stationData];
+        
+        list.forEach(s => {
+            const existing = stations.get(s.id) || {};
+            // Merge dữ liệu mới vào dữ liệu cũ
+            stations.set(s.id, { 
+                ...existing, 
+                ...s,
+                lastActivity: s.lastActivity || new Date().toLocaleTimeString() 
+            });
+        });
+        renderStationList();
+    };
+
     // --- WEBSOCKET CONNECTION ---
     function connect() {
         const wsUrl = `ws://${window.location.host}/scada`;
@@ -140,41 +156,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             switch (data.type) {
                 case 'fullStatus':
-                    data.chargePoints.forEach(cpState => {
-                        const existingStation = stations.get(cpState.id) || {};
-                        stations.set(cpState.id, { ...existingStation, ...cpState, lastActivity: new Date().toLocaleTimeString() });
-                    });
+                    stations.clear();
+                    updateStationList(data.chargePoints);
                     break;
                 case 'connect':
                 case 'boot':
-                    station = stations.get(data.id) || {};
-                    stations.set(data.id, { ...station, ...data.state, lastActivity: new Date().toLocaleTimeString() });
-                    if (currentDetailId === data.id) {
-                        updateDetailViewStatus(data.state.status);
-                    }
+                    updateStationList(data.state); // data.state chứa thông tin id, location...
                     break;
                 case 'disconnect':
-                    station = stations.get(data.id);
-                    if (station) {
-                        station.status = 'Unavailable';
-                        station.lastActivity = new Date().toLocaleTimeString();
-                        if (currentDetailId === data.id) {
-                            updateDetailViewStatus('Unavailable');
+                    if (data.hardDelete) {
+                        stations.delete(data.id);
+                    } else {
+                        const st = stations.get(data.id);
+                        if (st) { 
+                            st.status = 'Unavailable'; 
+                            st.lastActivity = new Date().toLocaleTimeString();
                         }
                     }
+                    renderStationList();
                     break;
                 case 'status':
-                    station = stations.get(data.id);
-                    if (station) {
-                        station.status = data.status;
-                        station.lastActivity = new Date().toLocaleTimeString();
-                        if (currentDetailId === data.id) {
-                            updateDetailViewStatus(data.status);
-                        }
+                    const st = stations.get(data.id);
+                    if (st) { 
+                        st.status = data.status;
+                        renderStationList();
                     }
                     break;
             }
-            renderStationList();
         };
 
         ws.onclose = () => {
@@ -187,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDetailId = null; 
         showView(stationListView);
     });
+
     deleteStationBtn.addEventListener('click', () => {
         if (currentDetailId && confirm(`Are you sure you want to delete station "${currentDetailId}"?`)) {
             stations.delete(currentDetailId);
@@ -199,44 +208,67 @@ document.addEventListener('DOMContentLoaded', () => {
             showModal(true, stations.get(currentDetailId));
         }
     });
+
     searchInput.addEventListener('input', renderStationList);
     addStationBtn.addEventListener('click', () => showModal(true));
     closeModalBtn.addEventListener('click', () => showModal(false));
     closeModalFooterBtn.addEventListener('click', () => showModal(false));
 
-    addModalBtn.addEventListener('click', () => {
+     addModalBtn.addEventListener('click', async () => {
         const id = modalStationIdInput.value.trim();
         const location = modalStationLocationInput.value.trim();
 
+        if (!id) { alert("Please enter ID"); return; }
+
         if (currentEditId) {
-            const station = stations.get(currentEditId);
-            if (station) {
-                station.location = location;
-            }
-            renderStationList();
-            showStationDetail(currentEditId);
+            // Logic edit (bạn có thể tự thêm API PUT nếu muốn)
+            alert("Edit feature currently supports visual update only.");
+            const st = stations.get(currentEditId);
+            if(st) { st.location = location; renderStationList(); }
         } else {
-            if (id && !stations.has(id)) {
-                const newStationData = {
-                    id: id,
-                    status: 'Provisioned',
-                    location: location,
-                    vendor: 'N/A',
-                    model: 'N/A',
-                    lastActivity: new Date().toLocaleTimeString()
-                };
-                stations.set(id, newStationData);
-                renderStationList();
-            } else if (!id) {
-                alert("Please enter a station ID.");
-                return;
-            } else {
-                alert(`Station with ID "${id}" already exists.`);
-                return;
+            // Logic ADD mới -> Gọi API lưu vào DB
+            try {
+                addModalBtn.disabled = true;
+                addModalBtn.textContent = "Saving...";
+                
+                const res = await fetch('/api/stations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, location })
+                });
+
+                if (res.ok) {
+                    // Thành công, WebSocket sẽ tự nhận tin nhắn 'connect' để cập nhật UI
+                    showModal(false);
+                } else {
+                    const err = await res.json();
+                    alert("Error: " + err.error);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Connection error");
+            } finally {
+                addModalBtn.disabled = false;
+                addModalBtn.textContent = "ADD";
             }
         }
-        showModal(false);
+    });
+
+    document.getElementById('delete-station-btn').addEventListener('click', async () => {
+        if (currentDetailId && confirm(`Delete station "${currentDetailId}" permanently?`)) {
+            try {
+                const res = await fetch(`/api/stations/${currentDetailId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    // Thành công, đợi WebSocket báo về hoặc tự xóa UI
+                    showView(document.getElementById('station-list-view'));
+                } else {
+                    alert("Failed to delete");
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
     });
 
     connect();
-});
+})

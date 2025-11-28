@@ -239,36 +239,136 @@ async function initializeOpcUaServer() {
 
 // --- HTTP SERVER ---
 const server = http.createServer(async (req, res) => {
-    const pathname = req.url.split('?')[0];
+    // CORS Headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // API để lấy dữ liệu lịch sử từ Database
-    if (pathname === '/api/history') {
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    // Phân tích URL
+    const urlParts = req.url.split('?')[0].split('/');
+    const apiBase = urlParts[1]; // 'api'
+    const resource = urlParts[2]; // 'history' hoặc 'stations'
+
+    // 1. API: Lấy lịch sử giao dịch
+    if (apiBase === 'api' && resource === 'history' && req.method === 'GET') {
         try {
             const data = await db.getRecentTransactions();
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(data));
-        } catch (e) {
-            console.error("[API] Lỗi API history:", e);
-            res.writeHead(500);
-            res.end(JSON.stringify({ error: 'Internal Server Error' }));
+        } catch (e) { 
+            res.writeHead(500); res.end(JSON.stringify({error: e.message})); 
         }
-        return; 
+        return;
     }
 
-    // Xử lý file tĩnh thông thường
-    let filePath = path.join(__dirname, 'public', pathname);
+    // 2. API: Quản lý Trạm Sạc (CẦN THIẾT CHO NÚT ADD)
+    if (apiBase === 'api' && resource === 'stations') {
+        // GET /api/stations
+        if (req.method === 'GET') {
+            try {
+                const stations = await db.getAllChargePoints();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(stations));
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
+        // POST /api/stations (Thêm trạm mới)
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk.toString());
+            req.on('end', async () => {
+                try {
+                    const { id, location } = JSON.parse(body);
+                    if (!id) throw new Error("Missing ID");
+                    
+                    await db.createChargePoint(id, location);
+                    
+                    // Báo cho các dashboard biết có trạm mới
+                    broadcastToDashboards({ 
+                        type: 'connect', 
+                        id: id, 
+                        state: { id, location, status: 'Unavailable', vendor: 'N/A', model: 'N/A' } 
+                    });
+
+                    res.writeHead(201, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                } catch (e) { 
+                    console.error("[API] Lỗi thêm trạm:", e);
+                    res.writeHead(400); res.end(JSON.stringify({error: e.message})); 
+                }
+            });
+            return;
+        }
+
+        // DELETE /api/stations/:id
+        if (req.method === 'DELETE') {
+            const stationId = urlParts[3];
+            if (stationId) {
+                try {
+                    await db.deleteChargePoint(stationId);
+                    // Ngắt kết nối nếu đang chạy
+                    const cp = clients.chargePoints.get(stationId);
+                    if (cp) {
+                        if (cp.ws) cp.ws.close();
+                        if (cp.python) cp.python.kill();
+                        clients.chargePoints.delete(stationId);
+                    }
+                    
+                    broadcastToDashboards({ type: 'disconnect', id: stationId, hardDelete: true });
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                } catch (e) {
+                    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+                }
+            }
+            return;
+        }
+    }
+
+    // 3. Xử lý file tĩnh (Static Files)
+    let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+    
+    // Fix lỗi EISDIR: Nếu đường dẫn là thư mục, tự động thêm index.html
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
         filePath = path.join(filePath, 'index.html');
     }
+    
     fs.readFile(filePath, (err, content) => {
-        if (err) {
-            res.writeHead(404);
-            res.end('404 Not Found');
-            return;
+        if (err) { 
+            if(err.code == 'ENOENT') {
+                // SPA Fallback (cho React/Vue router nếu dùng, ở đây dùng cho an toàn)
+                fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, indexContent) => {
+                     if(err) { res.writeHead(404); res.end('Not Found'); }
+                     else { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(indexContent); }
+                });
+            } else {
+                res.writeHead(500); res.end('Internal Server Error');
+            }
+            return; 
         }
-        const ext = path.extname(filePath);
-        const mimeTypes = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
-        res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+        
+        const ext = path.extname(filePath).toLowerCase();
+        let contentType = 'text/html';
+        switch (ext) {
+            case '.js': contentType = 'text/javascript'; break;
+            case '.css': contentType = 'text/css'; break;
+            case '.json': contentType = 'application/json'; break;
+            case '.png': contentType = 'image/png'; break;
+            case '.jpg': contentType = 'image/jpg'; break;
+            case '.ico': contentType = 'image/x-icon'; break;
+        }
+        
+        res.writeHead(200, { 'Content-Type': contentType });
         res.end(content);
     });
 });
@@ -276,14 +376,38 @@ const server = http.createServer(async (req, res) => {
 // --- WEBSOCKET SERVER ---
 const wss = new WebSocket.Server({ server });
 
-wss.on('connection', (ws, req) => {
+async function sendFullStatusToDashboard(ws) {
+    try {
+        const dbStations = await db.getAllChargePoints();
+        const combinedList = dbStations.map(station => {
+            const onlineCp = clients.chargePoints.get(station.id);
+            if (onlineCp) {
+                return { ...onlineCp.state, location: station.location };
+            } else {
+                return {
+                    id: station.id,
+                    status: station.status || 'Unavailable', // Lấy status từ DB
+                    vendor: station.vendor,
+                    model: station.model,
+                    location: station.location,
+                    lastActivity: station.last_seen
+                };
+            }
+        });
+        ws.send(JSON.stringify({ type: 'fullStatus', chargePoints: combinedList }));
+    } catch (err) {
+        console.error("Error sending full status:", err);
+    }
+}
+
+wss.on('connection', async (ws, req) => {
     const urlParts = req.url.split('/');
     const id = urlParts.pop() || urlParts.pop();
 
     if (id === 'dashboard' || id === 'scada') {
         clients.dashboards.add(ws);
         console.log(`[Master] ${id.toUpperCase()} đã kết nối.`);
-        ws.send(JSON.stringify({ type: 'fullStatus', chargePoints: Array.from(clients.chargePoints.values(), cp => cp.state) }));
+        await sendFullStatusToDashboard(ws);
         
         ws.on('message', (message) => {
             try {
@@ -364,6 +488,7 @@ wss.on('connection', (ws, req) => {
         // Ghi nhận kết nối vào Database
         db.updateChargePoint(chargePointId, '', '');
         db.recordHeartbeat(chargePointId);
+        db.updateChargePointStatus(chargePointId, 'Available');
 
         ws.on('message', (message) => {
             const currentCp = clients.chargePoints.get(chargePointId);
@@ -513,6 +638,7 @@ wss.on('connection', (ws, req) => {
 
                 clients.chargePoints.delete(chargePointId);
                 console.log(`[Master] Client '${chargePointId}' đã ngắt kết nối.`);
+                db.updateChargePointStatus(chargePointId, 'Unavailable');
                 broadcastToDashboards({ type: 'disconnect', id: chargePointId });
             } else {
                 // Đây là 1 socket cũ, nó đã bị "đè" và dọn dẹp rồi.
