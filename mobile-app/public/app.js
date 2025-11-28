@@ -1,20 +1,47 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- VIEW MANAGEMENT ---
-    const navItems = document.querySelectorAll('.nav-item');
+    const statusBackBtn = document.getElementById('status-back-btn');
     const views = document.querySelectorAll('.view');
-    
-    navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            
-            const targetViewId = item.dataset.view;
-            views.forEach(view => {
-                view.classList.toggle('active', view.id === targetViewId);
-            });
+
+    const switchView = (viewId) => {
+        views.forEach(view => {
+            if (view.id === viewId) {
+                view.classList.add('active');
+            } else {
+                view.classList.remove('active');
+            }
         });
-    });
+        // Cuộn lên đầu trang khi chuyển view
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    let isChargingSessionActive = false;
+
+    // --- LOGIC NÚT BACK (QUAY VỀ SCAN) ---
+    if (statusBackBtn) {
+        statusBackBtn.addEventListener('click', () => {
+            // Nếu đang sạc (dù nút back đã bị ẩn nhưng check thêm cho chắc), chặn lại
+            if (isChargingSessionActive) return;
+
+            // Ngắt kết nối WebSocket nếu đang mở
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+
+            // Reset giao diện sạc
+            const connectorsContainer = document.getElementById('connectors-container');
+            connectorsContainer.innerHTML = `
+                <div class="connector-placeholder">
+                    <i class="fa-solid fa-plug-circle-xmark"></i>
+                    <p>Disconnected</p>
+                </div>
+            `;
+
+            // Quay về màn hình kết nối
+            switchView('connection-view');
+        });
+    }
 
     // --- OCPP CONNECTION LOGIC ---
     const connectBtn = document.getElementById('connect-btn');
@@ -127,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const backendUrl = `${protocol}//${window.location.host}`;
         backendUrlInput.value = backendUrl;
         chargeboxIdInput.value = stationIdParam;
+        switchView('connection-view');
         
         // Switch to connection view
         navItems.forEach(i => i.classList.remove('active'));
@@ -204,13 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+             websocket.close();
+             console.log("Closing existing connection before reconnecting...");
+        }
+
         // Chuyển sang View Status
         views.forEach(view => view.classList.remove('active'));
         document.getElementById('status-view').classList.add('active');
-
-        // Cập nhật Bottom Nav sang Status
-        navItems.forEach(item => item.classList.remove('active'));
-        document.querySelector('[data-view="status-view"]').classList.add('active');
 
         const fullUrl = `${backendUrl}/${chargeboxId}`;
         statusBanner.style.display = 'block';
@@ -225,7 +254,14 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Connected');
             statusBanner.classList.add('success');
             statusBanner.textContent = `Successfully connected to ${chargeboxId}.`;
-            chargePoint = new ChargePointStatus(chargeboxId, sendRequest, sendResponse);
+            chargePoint = new ChargePointStatus(chargeboxId, sendRequest, sendResponse, (isCharging) => {
+                isChargingSessionActive = isCharging;
+
+            if (statusBackBtn) {
+                    statusBackBtn.style.display = isCharging ? 'none' : 'flex';
+                }
+            });
+
             connectorsContainer.innerHTML = '';
             connectorsContainer.appendChild(chargePoint.getElement());
             
@@ -256,9 +292,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         websocket.onclose = () => {
              if (chargePoint) {
+                switchView('connection-view');
+                statusBanner.style.display = 'block';
                 statusBanner.classList.add('error');
                 statusBanner.textContent = `Connection with ${chargeboxId} closed.`;
                 chargePoint = null;
+                isChargingSessionActive = false;
+                if (statusBackBtn) statusBackBtn.style.display = 'flex';
                 resetToEmptyState();
              }
         };
@@ -266,10 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CHARGE POINT STATUS CLASS ---
     class ChargePointStatus {
-        constructor(id, sendRequestCallback, sendResponseCallback) {
+        constructor(id, sendRequestCallback, sendResponseCallback, onChargingStateChange) {
             this.id = id;
             this.sendRequest = sendRequestCallback;
             this.sendResponse = sendResponseCallback;
+            this.onChargingStateChange = onChargingStateChange;
+
             this.transactionId = null;
             this.meterValue = 0;
             this.meterValueIntervalId = null;
@@ -1064,9 +1106,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStatusUI(status) {
             this.dom.statusDisplay.className = 'status-display';
-
+            const btn = this.dom.startStopBtn;
             this.dom.plugStatusBtn.disabled = true;
             this.dom.evStatusBtn.disabled = true;
+
+            const isCharging = (status === 'Charging' || status === 'Preparing' || status === 'Finishing');
+            if (this.onChargingStateChange) this.onChargingStateChange(isCharging);
 
             switch (status) {
                 case 'Available':

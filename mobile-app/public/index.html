@@ -2,7 +2,8 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- SỬA LỖI 1 & 2: Xóa maximum-scale và user-scalable để hỗ trợ Accessibility -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>MicroOcpp Client</title>
@@ -14,18 +15,9 @@
     <div class="mobile-app">
         <!-- Main Content -->
         <main class="mobile-content">
-            <!-- View 1: Status -->
-            <div id="status-view" class="view active">
-                <div id="connectors-container">
-                    <div class="connector-placeholder">
-                        <i class="fa-solid fa-plug-circle-xmark"></i>
-                        <p>Please connect to a Charge Point using the Connection tab below.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- View 2: Connection -->
-            <div id="connection-view" class="view">
+            
+            <!-- View 1: Connection (Màn hình mặc định) -->
+            <div id="connection-view" class="view active">
                 <div class="connection-form">
                     <div class="connection-status-banner"></div>
                     
@@ -33,7 +25,8 @@
                     <div class="qr-scanner-section">
                         <h3><i class="fa-solid fa-qrcode"></i> Scan QR Code</h3>
                         <div id="qr-reader"></div>
-                        <button id="toggle-scanner-btn" class="scanner-toggle-btn">
+                        <!-- SỬA LỖI 3: Thêm title và aria-label -->
+                        <button id="toggle-scanner-btn" class="scanner-toggle-btn" title="Toggle Camera Scanner" aria-label="Start or Stop QR Code Scanner">
                             <i class="fa-solid fa-camera"></i> Start Scanner
                         </button>
                     </div>
@@ -55,25 +48,40 @@
                         </div>
                     </div>
 
-                    <button id="connect-btn" class="connect-btn">
+                    <!-- SỬA LỖI 4: Thêm title và aria-label -->
+                    <button id="connect-btn" class="connect-btn" title="Connect to Server" aria-label="Connect to Charge Point Server">
                         <i class="fa-solid fa-plug"></i> Connect
                     </button>
                 </div>
             </div>
 
-            <!-- View 3: Stripe Payment (Dedicated Screen) -->
+            <!-- View 2: Status (Giao diện sạc) -->
+            <div id="status-view" class="view">
+                <!-- Header mới với nút Back -->
+                <div class="status-header-bar">
+                    <button id="status-back-btn" class="header-back-btn" title="Back to Connection" aria-label="Back to Connection Screen">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2>Charge Point</h2>
+                </div>
+
+                <div id="connectors-container">
+                    <!-- Nội dung thẻ sạc sẽ được JS chèn vào đây -->
+                </div>
+            </div>
+
+            <!-- View 3: Stripe Payment -->
             <div id="stripe-payment-view" class="view">
                 <div class="stripe-payment-container">
                     <div class="stripe-payment-header">
-                        <button class="back-nav-btn" id="stripe-back-nav-btn">
+                        <button class="back-nav-btn" id="stripe-back-nav-btn" title="Back to Status" aria-label="Back to Status Screen">
                             <i class="fa-solid fa-arrow-left"></i>
                         </button>
                         <h2><i class="fab fa-cc-stripe"></i> Card Payment</h2>
                     </div>
                     
                     <div class="stripe-payment-content">
-                        <!-- Card Display -->
-                        <div class="stripe-card-display">
+                         <div class="stripe-card-display">
                             <div class="stripe-card-chip"></div>
                             <div class="stripe-card-number-display">•••• •••• •••• ••••</div>
                             <div class="stripe-card-info-row">
@@ -82,7 +90,6 @@
                             </div>
                         </div>
                         
-                        <!-- Payment Form -->
                         <div class="stripe-payment-form">
                             <div class="form-group">
                                 <label for="stripe-card-number-input">Card Number</label>
@@ -103,45 +110,24 @@
                                 <input type="text" id="stripe-name-input" placeholder="JOHN DOE">
                             </div>
                             
-                            <!-- Amount Display -->
                             <div class="stripe-payment-amount-display">
                                 <span class="amount-label">Amount to Pay</span>
                                 <span class="amount-value" id="stripe-payment-amount-value">0 VND</span>
                             </div>
                             
-                            <!-- Pay Button -->
-                            <button class="action-btn stripe-payment-btn" id="stripe-payment-btn">
+                            <button class="action-btn stripe-payment-btn" id="stripe-payment-btn" title="Pay Now" aria-label="Process Payment Now">
                                 <i class="fas fa-lock"></i> Pay Now
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </main>
-
-            <!-- View 3: Payment -->
+            
+            <!-- View 4: Payment Placeholder -->
             <div id="payment-view" class="view">
-                <div class="payment-container">
-                    <!-- Payment screens will be dynamically shown here -->
-                </div>
+                <div class="payment-container"></div>
             </div>
         </main>
-
-        <!-- Bottom Navigation -->
-        <nav class="bottom-nav">
-            <a href="#" class="nav-item active" data-view="status-view">
-                <i class="fa-solid fa-gauge-high"></i>
-                <span>Status</span>
-            </a>
-            <a href="#" class="nav-item" data-view="connection-view">
-                <i class="fa-solid fa-plug"></i>
-                <span>Connect</span>
-            </a>
-            <a href="#" class="nav-item payment-nav-item" data-view="payment-view" style="display: none;">
-                <i class="fa-solid fa-credit-card"></i>
-                <span>Payment</span>
-            </a>
-        </nav>
     </div>
     <script src="app.js"></script>
 </body>

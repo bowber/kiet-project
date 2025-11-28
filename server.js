@@ -58,19 +58,20 @@ function createOpcUaNodesForChargePoint(chargePointId) {
         return;
     }
 
-    let chargePointFolder = chargePointsFolder.getChildByName(chargePointId);
-    const nodes = {};
-
     const folderNodeId = `ns=${nsIndex};s=${chargePointId}`;
+    let chargePointFolder = opcUaAddressSpace.findNode(folderNodeId);
+
+    const nodes = {};
     const variableNodeId = (name) => `ns=${nsIndex};s=${chargePointId}.${name}`;
 
     if (!chargePointFolder) {
         // --- Tạo mới mọi thứ ---
         console.log(`[OPC UA] Đang tạo thư mục mới cho ${chargePointId}`);
-        chargePointFolder = namespace.addFolder(chargePointsFolder, {
-            browseName: chargePointId,
-            nodeId: folderNodeId
-        });
+        try {
+            chargePointFolder = namespace.addFolder(chargePointsFolder, {
+                browseName: chargePointId,
+                nodeId: folderNodeId
+            });
 
         // Tạo các node con với explicit nodeId
         nodes.Status = namespace.addVariable({ componentOf: chargePointFolder, browseName: "Status", dataType: DataType.String, value: { dataType: DataType.String, value: "Connecting" }, nodeId: variableNodeId("Status") });
@@ -82,9 +83,14 @@ function createOpcUaNodesForChargePoint(chargePointId) {
         nodes.RemoteStart_IdTag = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStart_IdTag", dataType: DataType.String, value: { dataType: DataType.String, value: "0000" }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite", nodeId: variableNodeId("RemoteStart_IdTag") });
         nodes.RemoteStopTrigger = namespace.addVariable({ componentOf: chargePointFolder, browseName: "RemoteStop_Trigger", dataType: DataType.Boolean, value: { dataType: DataType.Boolean, value: false }, accessLevel: "CurrentRead | CurrentWrite", userAccessLevel: "CurrentRead | CurrentWrite", nodeId: variableNodeId("RemoteStop_Trigger") });
     
-    } else {
-        // --- Lấy lại các node cũ bằng findNode với explicit nodeId ---
-        console.log(`[OPC UA] Đã tìm thấy thư mục ${chargePointId}, đang sử dụng lại.`);
+    } catch (err) {
+            console.error(`[OPC UA] Lỗi khi tạo node cho ${chargePointId}:`, err.message);
+            // Nếu lỗi do đã tồn tại (race condition), thử tìm lại lần nữa
+            chargePointFolder = opcUaAddressSpace.findNode(folderNodeId);
+        }
+
+    if (chargePointFolder) {
+        console.log(`[OPC UA] Sử dụng node folder đã tồn tại cho ${chargePointId}.`);
         nodes.Status = namespace.findNode(variableNodeId("Status"));
         nodes.Energy_Wh = namespace.findNode(variableNodeId("Energy_Wh"));
         nodes.TransactionID = namespace.findNode(variableNodeId("TransactionID"));
@@ -98,6 +104,7 @@ function createOpcUaNodesForChargePoint(chargePointId) {
     if (!nodes.RemoteStartTrigger || !nodes.RemoteStopTrigger || !nodes.RemoteStart_IdTag) {
         console.error(`[OPC UA] Lỗi: Không thể tìm thấy các node trigger cho ${chargePointId}. Hủy bỏ binding.`);
         return nodes; 
+    }
     }
 
     try {
